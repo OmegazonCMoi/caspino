@@ -8,13 +8,52 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
+import com.example.mobile.ui.theme.AccentBlue
+import com.example.mobile.ui.theme.AccentGreen
+import com.example.mobile.ui.theme.AccentPurple
+import com.example.mobile.ui.theme.AccentRed
+import com.example.mobile.ui.theme.DarkBackground
+import com.example.mobile.ui.theme.DarkBorder
+import com.example.mobile.ui.theme.DarkBorderVariant
+import com.example.mobile.ui.theme.DarkSurface
+import com.example.mobile.ui.theme.DarkSurfaceVariant
+import com.example.mobile.ui.theme.DarkTextPrimary
+import com.example.mobile.ui.theme.DarkTextSecondary
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = AccentBlue,
+    onPrimary = Color.White,
+    primaryContainer = AccentBlue.copy(alpha = 0.2f),
+    onPrimaryContainer = AccentBlue,
+    
+    secondary = AccentPurple,
+    onSecondary = Color.White,
+    secondaryContainer = AccentPurple.copy(alpha = 0.2f),
+    onSecondaryContainer = AccentPurple,
+    
+    tertiary = AccentGreen,
+    onTertiary = Color.White,
+    tertiaryContainer = AccentGreen.copy(alpha = 0.2f),
+    onTertiaryContainer = AccentGreen,
+    
+    background = DarkBackground,
+    onBackground = DarkTextPrimary,
+    
+    surface = DarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    
+    outline = DarkBorder,
+    outlineVariant = DarkBorderVariant,
+    
+    error = AccentRed,
+    onError = Color.White,
+    errorContainer = AccentRed.copy(alpha = 0.2f),
+    onErrorContainer = AccentRed
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -35,9 +74,9 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun MobileTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true, // Forcé en dark mode pour le style Apple/shadcn
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Désactivé pour utiliser notre thème personnalisé
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
