@@ -15,6 +15,18 @@
             android:name=".RouletteActivity"
             android:exported="false" />
         <activity
+            android:name=".BlackjackActivity"
+            android:exported="false" />
+        <activity
+            android:name=".PokerActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SlotMachineActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SportsBettingActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"

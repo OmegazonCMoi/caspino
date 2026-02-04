@@ -9,13 +9,14 @@ wss.on("connection", (ws) => {
 
   ws.on("message", async (data) => {
     const randomNumber = Math.floor(Math.random() * 37)
-    console.log(randomNumber)
     const result = await calculateGains(
       randomNumber,
       JSON.parse(data.toString())
     )
 
-    ws.send(result)
+    console.log(JSON.stringify({ result, randomNumber }))
+
+    ws.send(JSON.stringify({ result, randomNumber }))
   })
 })
 

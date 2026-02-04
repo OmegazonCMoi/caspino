@@ -59,7 +59,8 @@ fun AppButton(
     size: ButtonSize = ButtonSize.Medium,
     enabled: Boolean = true,
     loading: Boolean = false,
-    icon: @Composable (() -> Unit)? = null
+    icon: @Composable (() -> Unit)? = null,
+    fontWeight: FontWeight = FontWeight.SemiBold
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -156,7 +157,7 @@ fun AppButton(
                 text = text,
                 color = animatedTextColor,
                 fontSize = fontSize,
-                fontWeight = FontWeight.Medium
+                fontWeight = fontWeight
             )
         }
     }

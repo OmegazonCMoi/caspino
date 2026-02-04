@@ -4,7 +4,17 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,7 +23,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -23,30 +39,32 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.mobile.ui.theme.*
+import com.example.mobile.ui.theme.AccentBlue
+import com.example.mobile.ui.theme.DarkBorder
+import com.example.mobile.ui.theme.DarkSurface
+import com.example.mobile.ui.theme.DarkTextPrimary
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
 fun RouletteWheel(
     modifier: Modifier = Modifier,
+    isConnected: Boolean = true,
+    externalSpinCommand: SpinCommand? = null,
+    onExternalSpinConsumed: () -> Unit = {},
+    onSpinRequest: (Int?) -> Unit = {},
     onNumberSelected: (Int) -> Unit = {}
 ) {
     val numbers = (0..36).toList()
-
-    // Visual sizes
     val blockSize = 80.dp
     val blockSpacing = 8.dp
     val itemWidthDp = blockSize + blockSpacing
 
     val density = LocalDensity.current
     val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
-
     val itemWidthPx = with(density) { itemWidthDp.toPx() }
     val screenWidthPx = with(density) { screenWidthDp.toPx() }
-    val screenCenterPx = screenWidthPx / 2f
 
-    // LARGE repeated list to allow long scrolls
     val repeats = 300
     val totalItems = repeats * numbers.size
     val middleIndex = totalItems / 2
@@ -56,68 +74,92 @@ fun RouletteWheel(
 
     var isSpinning by remember { mutableStateOf(false) }
     var forcedNumberText by remember { mutableStateOf("") }
+    var pendingExternalSpin by remember { mutableStateOf<SpinCommand?>(null) }
+    var awaitingServer by remember { mutableStateOf(false) }
 
-    // An actual pixel animator (independent from LazyList)
     val scroller = remember { Animatable(0f) }
+
+    LaunchedEffect(isConnected) {
+        if (!isConnected) {
+            awaitingServer = false
+        }
+    }
+
+    fun triggerSpin(targetNumber: Int) {
+        if (isSpinning) return
+        val numberIndex = numbers.indexOf(targetNumber).takeIf { it >= 0 } ?: return
+        val spinRounds = 15
+        val targetIndex = middleIndex + (spinRounds * numbers.size) + numberIndex
+        val targetCenterPx = targetIndex * itemWidthPx + (itemWidthPx / 2f)
+        val targetScrollPx = targetCenterPx - (screenWidthPx / 2f)
+
+        onNumberSelected(targetNumber)
+
+        isSpinning = true
+        scope.launch {
+            scroller.snapTo(0f)
+            scroller.animateTo(
+                targetValue = targetScrollPx,
+                animationSpec = tween(
+                    durationMillis = 15000,
+                    easing = CubicBezierEasing(0.08f, 0.78f, 0.22f, 1f)
+                )
+            )
+            isSpinning = false
+        }
+    }
+
+    LaunchedEffect(scroller.value) {
+        val px = scroller.value.coerceAtLeast(0f)
+        val index = (px / itemWidthPx).toInt().coerceIn(0, totalItems - 1)
+        val offsetPx = px - (index * itemWidthPx)
+        listState.scrollToItem(index = index, scrollOffset = offsetPx.roundToInt().coerceAtLeast(0))
+    }
+
+    LaunchedEffect(externalSpinCommand?.id) {
+        pendingExternalSpin = externalSpinCommand
+    }
+
+    LaunchedEffect(pendingExternalSpin?.id, isSpinning) {
+        val command = pendingExternalSpin ?: return@LaunchedEffect
+        if (!isSpinning) {
+            awaitingServer = false
+            triggerSpin(command.number)
+            onExternalSpinConsumed()
+            pendingExternalSpin = null
+        }
+    }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-
-        // --- CONTROLS ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val buttonLabel = when {
+                !isConnected -> "Connexion..."
+                isSpinning -> "Arrêt..."
+                awaitingServer -> "En attente..."
+                else -> "Lancer"
+            }
+            val buttonEnabled = isConnected && !isSpinning && !awaitingServer
+
             AppButton(
-                text = if (isSpinning) "Arrêt..." else "Lancer",
+                text = buttonLabel,
                 onClick = {
-                    if (isSpinning) return@AppButton
-
+                    if (!isConnected || isSpinning || awaitingServer) return@AppButton
                     val forced = forcedNumberText.toIntOrNull()?.takeIf { it in 0..36 }
-                    val selected = forced ?: (0..36).random()
-                    val targetIndexInNumbers = numbers.indexOf(selected)
-                    if (targetIndexInNumbers == -1) return@AppButton
-
-                    onNumberSelected(selected)
-                    isSpinning = true
-
-                    scope.launch {
-                        // Reset scroller offset to 0
-                        scroller.snapTo(0f)
-
-                        // Compute target index
-                        val spinRounds = 15
-                        val cycleSize = numbers.size
-
-                        val targetGlobalIndex =
-                            middleIndex + (spinRounds * cycleSize) + targetIndexInNumbers
-
-                        // Compute target pixel position
-                        val targetCenterPx =
-                            targetGlobalIndex * itemWidthPx + (itemWidthPx / 2f)
-
-                        val targetScrollPx = targetCenterPx - screenCenterPx
-
-                        // Animate over 15 seconds
-                        scroller.animateTo(
-                            targetValue = targetScrollPx,
-                            animationSpec = tween(
-                                durationMillis = 15000,
-                                easing = CubicBezierEasing(0.08f, 0.78f, 0.22f, 1f)
-                            )
-                        )
-
-                        isSpinning = false
-                    }
+                    awaitingServer = true
+                    onSpinRequest(forced)
                 },
                 variant = ButtonVariant.Primary,
                 size = ButtonSize.Medium,
-                enabled = !isSpinning,
+                enabled = buttonEnabled,
                 modifier = Modifier.weight(1f)
             )
 
@@ -139,18 +181,15 @@ fun RouletteWheel(
                     unfocusedIndicatorColor = DarkBorder
                 ),
                 modifier = Modifier.width(100.dp),
-                enabled = !isSpinning
+                enabled = buttonEnabled
             )
         }
 
-        // --- ROULETTE ---
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(blockSize + 32.dp)
-                .padding(vertical = 16.dp)
         ) {
-            // Blue center indicator
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -159,35 +198,19 @@ fun RouletteWheel(
                     .background(AccentBlue)
             )
 
-            // LazyRow that follows the Animatable scroll
-            LaunchedEffect(scroller.value) {
-                val px = scroller.value
-                val index = (px / itemWidthPx).toInt()
-                val offsetPx = px - (index * itemWidthPx)
-                listState.scrollToItem(
-                    index = index,
-                    scrollOffset = offsetPx.roundToInt().coerceAtLeast(0)
-                )
-            }
-
             LazyRow(
                 state = listState,
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(blockSpacing)
             ) {
-                items(totalItems) { i ->
-                    val number = numbers[i % numbers.size]
-                    RouletteBlock(
-                        number = number,
-                        size = blockSize,
-                        modifier = Modifier.padding(horizontal = blockSpacing / 2)
-                    )
+                items(totalItems) { index ->
+                    val number = numbers[index % numbers.size]
+                    RouletteBlock(number = number, size = blockSize)
                 }
             }
         }
     }
 }
-
 
 @Composable
 private fun RouletteBlock(
@@ -213,3 +236,9 @@ private fun RouletteBlock(
         )
     }
 }
+
+data class SpinCommand(
+    val id: Int,
+    val number: Int
+)
+
