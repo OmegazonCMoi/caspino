@@ -67,7 +67,9 @@ fun HomeScreen() {
         BottomBarItem(AppIcons.Home, AppIcons.HomeFilled) { selectedTab = 0 },
         BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) { selectedTab = 1 },
         BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) { selectedTab = 2 },
-        BottomBarItem(AppIcons.Settings, AppIcons.SettingsFilled) { selectedTab = 3 }
+        BottomBarItem(AppIcons.Cart, AppIcons.CartFilled) {
+            context.startActivity(android.content.Intent(context, com.example.mobile.ShopActivity::class.java))
+        }
     )
 
     Scaffold(
@@ -86,9 +88,9 @@ fun HomeScreen() {
                 .padding(20.dp)
         ) {
 
-            // ===== SCORE HEADER (balance animée) =====
+            // ===== SCORE HEADER (balance animée, partagée) =====
             BalanceHeader(
-                amount = 1968,
+                amount = BalanceState.balance.intValue,
                 modifier = Modifier.padding(top = 60.dp)
             )
 

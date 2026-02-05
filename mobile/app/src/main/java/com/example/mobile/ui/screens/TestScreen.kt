@@ -56,8 +56,8 @@ fun TestScreen() {
             onClick = { selectedTab = 2 }
         ),
         BottomBarItem(
-            icon = AppIcons.Settings,
-            selectedIcon = AppIcons.SettingsFilled,
+            icon = AppIcons.Cart,
+            selectedIcon = AppIcons.CartFilled,
             onClick = { selectedTab = 3 }
         )
     )

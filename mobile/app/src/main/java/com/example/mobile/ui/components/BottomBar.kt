@@ -69,6 +69,8 @@ fun AppBottomBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            // Décolle légèrement la bottom bar du bord bas
+            .padding(start = 16.dp, end = 16.dp, bottom = 20.dp)
             .height(80.dp)
             .offset(y = animatedTranslateY.dp)
     ) {
@@ -88,8 +90,8 @@ fun AppBottomBar(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            DarkSurface.copy(alpha = 0.85f),
-                            DarkSurface.copy(alpha = 0.9f)
+                            Color.Black.copy(alpha = 0.15f),
+                            Color.Black.copy(alpha = 0.55f)
                         )
                     )
                 )

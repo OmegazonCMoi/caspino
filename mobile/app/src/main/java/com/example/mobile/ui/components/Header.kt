@@ -25,6 +25,7 @@ fun AppHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clickable(onClick = onBackClick)
             .padding(start = 16.dp, top = 64.dp, end = 16.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -33,7 +34,6 @@ fun AppHeader(
             contentDescription = "Retour",
             tint = AccentBlue,
             modifier = Modifier
-                .clickable(onClick = onBackClick)
                 .padding(end = 8.dp)
         )
         Text(

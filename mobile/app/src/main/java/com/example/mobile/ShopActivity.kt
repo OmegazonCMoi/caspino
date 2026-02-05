@@ -6,15 +6,14 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.mobile.ui.screens.RouletteScreen
+import com.example.mobile.ui.screens.ShopScreen
 import com.example.mobile.ui.theme.MobileTheme
 
-class RouletteActivity : ComponentActivity() {
+class ShopActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Cacher la barre de statut pendant la roulette
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.statusBars())
@@ -22,10 +21,9 @@ class RouletteActivity : ComponentActivity() {
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        // Temporairement : pas de connexion WebSocket, fonctionnement local uniquement
         setContent {
             MobileTheme {
-                RouletteScreen(onBackClick = { finish() })
+                ShopScreen(onBackClick = { finish() })
             }
         }
     }

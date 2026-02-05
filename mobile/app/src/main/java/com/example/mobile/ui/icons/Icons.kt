@@ -349,5 +349,143 @@ object AppIcons {
             return _settingsFilled!!
         }
     private var _settingsFilled: ImageVector? = null
+
+    val Cart: ImageVector
+        get() {
+            if (_cart != null) {
+                return _cart!!
+            }
+            _cart = ImageVector.Builder(
+                name = "Cart",
+                defaultWidth = 24.0.dp,
+                defaultHeight = 24.0.dp,
+                viewportWidth = 24.0f,
+                viewportHeight = 24.0f
+            ).apply {
+                path(
+                    fill = null,
+                    fillAlpha = 1f,
+                    stroke = SolidColor(Color.Black),
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 2.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(9.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 7.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 9.0f, 21.0f)
+                    close()
+                }
+                path(
+                    fill = null,
+                    fillAlpha = 1f,
+                    stroke = SolidColor(Color.Black),
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 2.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(20.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 18.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 20.0f, 21.0f)
+                    close()
+                }
+                path(
+                    fill = null,
+                    fillAlpha = 1f,
+                    stroke = SolidColor(Color.Black),
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 2.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(2.05f, 2.05f)
+                    lineTo(4.05f, 2.05f)
+                    lineTo(6.71f, 14.47f)
+                    arcTo(2.0f, 2.0f, 0.0f, false, false, 8.71f, 16.05f)
+                    lineTo(18.49f, 16.05f)
+                    arcTo(2.0f, 2.0f, 0.0f, false, false, 20.44f, 14.48f)
+                    lineTo(22.09f, 7.05f)
+                    lineTo(5.12f, 7.05f)
+                }
+            }.build()
+            return _cart!!
+        }
+    private var _cart: ImageVector? = null
+
+    val CartFilled: ImageVector
+        get() {
+            if (_cartFilled != null) {
+                return _cartFilled!!
+            }
+            _cartFilled = ImageVector.Builder(
+                name = "CartFilled",
+                defaultWidth = 24.0.dp,
+                defaultHeight = 24.0.dp,
+                viewportWidth = 24.0f,
+                viewportHeight = 24.0f
+            ).apply {
+                path(
+                    fill = SolidColor(Color.White),
+                    fillAlpha = 1f,
+                    stroke = null,
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 1.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(9.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 7.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 9.0f, 21.0f)
+                    close()
+                }
+                path(
+                    fill = SolidColor(Color.White),
+                    fillAlpha = 1f,
+                    stroke = null,
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 1.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(20.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 18.0f, 21.0f)
+                    arcTo(1.0f, 1.0f, 0.0f, false, true, 20.0f, 21.0f)
+                    close()
+                }
+                path(
+                    fill = SolidColor(Color.White),
+                    fillAlpha = 1f,
+                    stroke = null,
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 1.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(2.05f, 2.05f)
+                    lineTo(4.05f, 2.05f)
+                    lineTo(6.71f, 14.47f)
+                    arcTo(2.0f, 2.0f, 0.0f, false, false, 8.71f, 16.05f)
+                    lineTo(18.49f, 16.05f)
+                    arcTo(2.0f, 2.0f, 0.0f, false, false, 20.44f, 14.48f)
+                    lineTo(22.09f, 7.05f)
+                    lineTo(5.12f, 7.05f)
+                }
+            }.build()
+            return _cartFilled!!
+        }
+    private var _cartFilled: ImageVector? = null
 }
 

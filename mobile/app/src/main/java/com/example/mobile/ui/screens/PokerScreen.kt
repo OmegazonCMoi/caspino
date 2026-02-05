@@ -1,5 +1,6 @@
 package com.example.mobile.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mobile.MainActivity
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppCard
 import com.example.mobile.ui.components.AppHeader
@@ -36,6 +38,10 @@ import com.example.mobile.ui.components.CardVariant
 import com.example.mobile.ui.theme.DarkSurface
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import androidx.compose.ui.platform.LocalContext
+import com.example.mobile.ui.components.AppBottomBar
+import com.example.mobile.ui.components.BottomBarItem
+import com.example.mobile.ui.icons.AppIcons
 import kotlin.random.Random
 
 @Composable
@@ -97,11 +103,32 @@ fun PokerScreen(
         playerBet = 0
     }
 
+    val context = LocalContext.current
+    val bottomBarItems = listOf(
+        BottomBarItem(
+            icon = AppIcons.Home,
+            selectedIcon = AppIcons.HomeFilled
+        ) {
+            context.startActivity(Intent(context, MainActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) { },
+        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) { },
+        BottomBarItem(AppIcons.Cart, AppIcons.CartFilled) {
+            context.startActivity(Intent(context, com.example.mobile.ShopActivity::class.java))
+        }
+    )
+
     Scaffold(
         topBar = {
             AppHeader(
                 title = "Poker",
                 onBackClick = onBackClick
+            )
+        },
+        bottomBar = {
+            AppBottomBar(
+                items = bottomBarItems,
+                selectedIndex = 0
             )
         }
     ) { innerPadding ->

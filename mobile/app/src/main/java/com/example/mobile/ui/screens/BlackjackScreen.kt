@@ -1,6 +1,14 @@
 package com.example.mobile.ui.screens
 
-import androidx.compose.foundation.Image
+import android.content.Intent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,22 +37,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mobile.MainActivity
 import com.example.mobile.R
 import com.example.mobile.ui.components.AppButton
-import com.example.mobile.ui.components.AppCard
 import com.example.mobile.ui.components.AppHeader
+import com.example.mobile.ui.components.BalanceHeader
+import com.example.mobile.ui.components.AppBottomBar
+import com.example.mobile.ui.components.BottomBarItem
 import com.example.mobile.ui.components.ButtonSize
 import com.example.mobile.ui.components.ButtonVariant
-import com.example.mobile.ui.components.CardVariant
-import com.example.mobile.ui.theme.DarkSurface
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import com.example.mobile.ui.icons.AppIcons
 import kotlin.random.Random
 
 @Composable
 fun BlackjackScreen(
     onBackClick: () -> Unit
 ) {
+    var balance by BalanceState.balance
+    var bet by remember { mutableStateOf(10) }
+
     var playerCards by remember { mutableStateOf<List<Int>>(emptyList()) }
     var dealerCards by remember { mutableStateOf<List<Int>>(emptyList()) }
     var gameStarted by remember { mutableStateOf(false) }
@@ -52,6 +67,22 @@ fun BlackjackScreen(
     var playerScore by remember { mutableStateOf(0) }
     var dealerScore by remember { mutableStateOf(0) }
     var gameResult by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+
+    val bottomBarItems = listOf(
+        BottomBarItem(
+            icon = AppIcons.Home,
+            selectedIcon = AppIcons.HomeFilled
+        ) {
+            context.startActivity(Intent(context, MainActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) { },
+        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) { },
+        BottomBarItem(AppIcons.Cart, AppIcons.CartFilled) {
+            context.startActivity(Intent(context, com.example.mobile.ShopActivity::class.java))
+        }
+    )
 
     fun drawCard(): Int {
         return Random.nextInt(1, 14) // 1-13 (As à Roi)
@@ -92,6 +123,24 @@ fun BlackjackScreen(
         updateScores()
     }
 
+    fun startNewRound() {
+        if (gameStarted || gameOver) return
+        if (bet <= 0 || balance < bet) return
+
+        // Déduire la mise de départ
+        balance -= bet
+
+        // Réinitialiser l'état de la manche et distribuer automatiquement
+        playerCards = emptyList()
+        dealerCards = emptyList()
+        playerScore = 0
+        dealerScore = 0
+        gameResult = null
+        gameOver = false
+
+        dealInitialCards()
+    }
+
     fun hit() {
         if (!gameOver && gameStarted) {
             playerCards = playerCards + drawCard()
@@ -113,12 +162,23 @@ fun BlackjackScreen(
             dealerCards = newDealerCards
             updateScores()
             gameOver = true
-            
+
             when {
-                dealerScore > 21 -> gameResult = "Vous avez gagné !"
-                dealerScore > playerScore -> gameResult = "Vous avez perdu !"
-                dealerScore < playerScore -> gameResult = "Vous avez gagné !"
-                else -> gameResult = "Égalité !"
+                // Victoire du joueur (croupier dépasse 21 ou a un score plus faible)
+                dealerScore > 21 || dealerScore < playerScore -> {
+                    gameResult = "Vous avez gagné !"
+                    // Mise gagnante : on rend la mise + le même montant
+                    balance += bet * 2
+                }
+                // Égalité : on rembourse simplement la mise
+                dealerScore == playerScore -> {
+                    gameResult = "Égalité !"
+                    balance += bet
+                }
+                // Défaite du joueur : la mise est déjà perdue
+                else -> {
+                    gameResult = "Vous avez perdu !"
+                }
             }
         }
     }
@@ -129,135 +189,265 @@ fun BlackjackScreen(
                 title = "Blackjack",
                 onBackClick = onBackClick
             )
+        },
+        bottomBar = {
+            AppBottomBar(
+                items = bottomBarItems,
+                selectedIndex = 0
+            )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Score du croupier
-            AppCard(
-                modifier = Modifier.fillMaxWidth(),
-                variant = CardVariant.Outlined
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Croupier: ${if (gameStarted) dealerScore else "?"}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkTextPrimary,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                // Solde commune
+                BalanceHeader(
+                    amount = balance,
+                    modifier = Modifier
+                        .padding(top = 40.dp)
+                        .align(Alignment.Start)
                 )
-                
-                // Cartes du croupier
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    dealerCards.forEachIndexed { index, card ->
-                        CardDisplay(
-                            card = card,
-                            hidden = index == 1 && !gameOver && gameStarted
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Étape 1 : uniquement la mise (avant de voir les cartes)
+                if (!gameStarted && !gameOver) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Mise : $bet",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DarkTextPrimary
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AppButton(
+                                text = "-10",
+                                onClick = { if (bet > 10) bet -= 10 },
+                                variant = ButtonVariant.Outline,
+                                size = ButtonSize.Medium,
+                                enabled = bet > 10,
+                                modifier = Modifier.weight(1f)
+                            )
+                            AppButton(
+                                text = "+10",
+                                onClick = { if (bet < balance) bet += 10 },
+                                variant = ButtonVariant.Outline,
+                                size = ButtonSize.Medium,
+                                enabled = bet < balance,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        AppButton(
+                            text = "Jouer",
+                            onClick = { startNewRound() },
+                            variant = ButtonVariant.Primary,
+                            size = ButtonSize.Medium,
+                            enabled = balance >= bet,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                // Étape 2 : cartes + actions, une fois la partie lancée
+                if (gameStarted || gameOver) {
+                    Spacer(modifier = Modifier.height(12.dp))
 
-            // Cartes du joueur
-            AppCard(
-                modifier = Modifier.fillMaxWidth(),
-                variant = CardVariant.Outlined
-            ) {
-                Text(
-                    text = "Vous: ${if (gameStarted) playerScore else "0"}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkTextPrimary,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                
+                    // Croupier
+                    Text(
+                        text = "Croupier",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DarkTextPrimary,
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    playerCards.forEach { card ->
-                        CardDisplay(card = card, hidden = false)
+                    dealerCards.forEachIndexed { index, card ->
+                        val hidden = index == 1 && !gameOver && gameStarted
+                        AnimatedContent(
+                            targetState = card to hidden,
+                            transitionSpec = {
+                                (slideInVertically { fullHeight -> -fullHeight } + fadeIn() togetherWith
+                                        slideOutVertically { fullHeight -> fullHeight } + fadeOut())
+                                    .using(SizeTransform(clip = false))
+                            },
+                            label = "dealer_card_$index"
+                        ) { (value, isHidden) ->
+                            CardDisplay(
+                                card = value,
+                                hidden = isHidden
+                            )
+                        }
                     }
                 }
-            }
 
-            // Résultat du jeu
-            if (gameResult != null) {
-                Text(
-                    text = gameResult!!,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkTextPrimary,
-                    textAlign = TextAlign.Center
-                )
-            }
+                    // Résultat du jeu (plus grand et plus marqué)
+                    if (gameResult != null) {
+                        Text(
+                            text = gameResult!!,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = DarkTextPrimary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp, bottom = 4.dp)
+                        )
+                    }
 
-            Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.weight(1f))
 
-            // Boutons d'action
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (!gameStarted) {
-                    AppButton(
-                        text = "Distribuer",
-                        onClick = { dealInitialCards() },
-                        variant = ButtonVariant.Primary,
-                        size = ButtonSize.Large,
-                        modifier = Modifier.weight(1f)
-                    )
-                } else {
-                    AppButton(
-                        text = "Tirer",
-                        onClick = { hit() },
-                        variant = ButtonVariant.Primary,
-                        size = ButtonSize.Large,
-                        enabled = !gameOver,
-                        modifier = Modifier.weight(1f)
-                    )
-                    AppButton(
-                        text = "Rester",
-                        onClick = { stand() },
-                        variant = ButtonVariant.Outline,
-                        size = ButtonSize.Large,
-                        enabled = !gameOver,
-                        modifier = Modifier.weight(1f)
-                    )
+                    // Zone joueur : cartes en bas à gauche, boutons à droite
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                    // Cartes du joueur :
+                    //  - 2 cartes principales plus grandes en bas
+                    //  - toutes les cartes supplémentaires, plus petites, au-dessus
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        val mainCards = playerCards.take(2)
+                        val extraCards = if (playerCards.size > 2) playerCards.drop(2) else emptyList()
+
+                        // Ligne du haut : cartes supplémentaires (petites)
+                        if (extraCards.isNotEmpty()) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                extraCards.forEachIndexed { index, extra ->
+                                    AnimatedContent(
+                                        targetState = extra,
+                                        transitionSpec = {
+                                            (slideInVertically { fullHeight -> fullHeight } + fadeIn() togetherWith
+                                                    slideOutVertically { fullHeight -> -fullHeight } + fadeOut())
+                                                .using(SizeTransform(clip = false))
+                                        },
+                                        label = "player_card_extra_$index"
+                                    ) { value ->
+                                        CardDisplay(
+                                            card = value,
+                                            hidden = !gameStarted,
+                                            isSmall = true
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Ligne du bas : deux grandes cartes principales
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AnimatedContent(
+                                targetState = mainCards.getOrNull(0),
+                                transitionSpec = {
+                                    (slideInVertically { fullHeight -> fullHeight } + fadeIn() togetherWith
+                                            slideOutVertically { fullHeight -> -fullHeight } + fadeOut())
+                                        .using(SizeTransform(clip = false))
+                                },
+                                label = "player_card_0"
+                            ) { value ->
+                                CardDisplay(
+                                    card = value ?: 0,
+                                    hidden = !gameStarted || value == null
+                                )
+                            }
+                            AnimatedContent(
+                                targetState = mainCards.getOrNull(1),
+                                transitionSpec = {
+                                    (slideInVertically { fullHeight -> fullHeight } + fadeIn() togetherWith
+                                            slideOutVertically { fullHeight -> -fullHeight } + fadeOut())
+                                        .using(SizeTransform(clip = false))
+                                },
+                                label = "player_card_1"
+                            ) { value ->
+                                CardDisplay(
+                                    card = value ?: 0,
+                                    hidden = !gameStarted || value == null
+                                )
+                            }
+                        }
+                    }
+
+                        // Boutons à droite (comme avant : seulement Tirer / Garder pendant la partie)
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (gameStarted) {
+                                AppButton(
+                                    text = "Tirer",
+                                    onClick = { hit() },
+                                    variant = ButtonVariant.Primary,
+                                    size = ButtonSize.Medium,
+                                    enabled = !gameOver,
+                                    modifier = Modifier.width(140.dp)
+                                )
+                                AppButton(
+                                    text = "Garder",
+                                    onClick = { stand() },
+                                    variant = ButtonVariant.Outline,
+                                    size = ButtonSize.Medium,
+                                    enabled = !gameOver,
+                                    modifier = Modifier.width(140.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (gameOver) {
+                        AppButton(
+                            text = "Nouvelle partie",
+                            onClick = {
+                                playerCards = emptyList()
+                                dealerCards = emptyList()
+                                gameStarted = false
+                                gameOver = false
+                                gameResult = null
+                                playerScore = 0
+                                dealerScore = 0
+                            },
+                            variant = ButtonVariant.Secondary,
+                            size = ButtonSize.Medium,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
-            }
 
-            if (gameOver) {
-                AppButton(
-                    text = "Nouvelle partie",
-                    onClick = {
-                        playerCards = emptyList()
-                        dealerCards = emptyList()
-                        gameStarted = false
-                        gameOver = false
-                        gameResult = null
-                        playerScore = 0
-                        dealerScore = 0
-                    },
-                    variant = ButtonVariant.Secondary,
-                    size = ButtonSize.Medium,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Spacer(modifier = Modifier.height(8.dp))
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -266,35 +456,26 @@ fun BlackjackScreen(
 fun CardDisplay(
     card: Int,
     hidden: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSmall: Boolean = false
 ) {
     Box(
         modifier = modifier
-            .size(width = 60.dp, height = 84.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .then(
-                if (hidden) {
-                    Modifier
-                } else {
-                    Modifier
-                }
-            ),
+            .size(
+                width = if (isSmall) 50.dp else 72.dp,
+                height = if (isSmall) 72.dp else 100.dp
+            )
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
         if (hidden) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp))
-            ) {
-                // Carte cachée - utiliser une image si disponible
-                Text(
-                    text = "?",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkTextSecondary
-                )
-            }
+            Text(
+                text = "?",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.Black
+            )
         } else {
             val cardValue = when (card) {
                 1 -> "A"
@@ -303,13 +484,41 @@ fun CardDisplay(
                 13 -> "K"
                 else -> card.toString()
             }
-            
-            Text(
-                text = cardValue,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkTextPrimary
-            )
+
+            // Choix pseudo-aléatoire mais stable d'un signe (suit) à partir de la valeur
+            val suitSymbol = when (card % 4) {
+                0 -> "♠"
+                1 -> "♥"
+                2 -> "♦"
+                else -> "♣"
+            }
+            val isRedSuit = suitSymbol == "♥" || suitSymbol == "♦"
+            val cardColor = if (isRedSuit) Color(0xFFE53935) else Color.Black
+
+            val paddingH = if (isSmall) 10.dp else 14.dp
+            val paddingV = if (isSmall) 8.dp else 12.dp
+            val fontSize = if (isSmall) 18.sp else 18.sp
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = paddingH, vertical = paddingV),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.Start
+            ) {
+                Text(
+                    text = cardValue,
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.Black,
+                    color = cardColor
+                )
+                Text(
+                    text = suitSymbol,
+                    fontSize = fontSize,
+                    fontWeight = FontWeight.Black,
+                    color = cardColor
+                )
+            }
         }
     }
 }

@@ -51,12 +51,20 @@ fun BalanceHeader(
         if (start == end) return@LaunchedEffect
 
         val diff = end - start
+        val absDiff = abs(diff)
+
+        // Si l'écart est vraiment énorme, on évite une animation longue
+        // pour préserver les perfs (on "snap" directement à la valeur).
+        if (absDiff > 200) {
+            displayedAmount = end
+            return@LaunchedEffect
+        }
         // On limite le nombre d'étapes et la durée totale pour éviter
         // que l'animation devienne trop folle sur les gros gains.
-        val maxSteps = 20
-        val maxDurationMs = 500
+        val maxSteps = 15
+        val maxDurationMs = 400
 
-        val steps = minOf(maxSteps, abs(diff))
+        val steps = minOf(maxSteps, absDiff)
         if (steps == 0) {
             displayedAmount = end
             return@LaunchedEffect

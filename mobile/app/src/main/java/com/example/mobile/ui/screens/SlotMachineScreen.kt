@@ -1,11 +1,18 @@
 package com.example.mobile.ui.screens
 
+import android.content.Intent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -17,6 +24,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,7 +47,6 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -47,13 +55,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mobile.MainActivity
 import com.example.mobile.R
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppCard
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BalanceHeader
+import com.example.mobile.ui.components.AppBottomBar
+import com.example.mobile.ui.components.BottomBarItem
 import com.example.mobile.ui.components.ButtonSize
 import com.example.mobile.ui.components.ButtonVariant
+import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
@@ -74,13 +86,11 @@ fun SlotMachineScreen(
     var reel2 by remember { mutableStateOf(0) }
     var reel3 by remember { mutableStateOf(0) }
     var isSpinning by remember { mutableStateOf(false) }
-    var balance by remember { mutableStateOf(1000) }
+    var balance by BalanceState.balance
     var bet by remember { mutableStateOf(10) }
     var lastWin by remember { mutableStateOf(0) }
-    var resultMessage by remember { mutableStateOf<String?>(null) }
     var spinTrigger by remember { mutableStateOf(0) }
     var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
-    var confettiDurationMs by remember { mutableStateOf(0L) }
 
     val symbolDrawables = listOf(
         R.drawable.cherries,
@@ -99,42 +109,79 @@ fun SlotMachineScreen(
     
     fun calculateWin(r1: Int, r2: Int, r3: Int, betAmount: Int): Int {
         return when {
+            // 3 symboles identiques
             r1 == r2 && r2 == r3 -> {
                 when (r1) {
-                    6 -> betAmount * 100 // 7️⃣ 7️⃣ 7️⃣
+                    6 -> betAmount * 100 // 7️⃣ 7️⃣ 7️⃣  (jackpot max)
                     5 -> betAmount * 50  // ⭐ ⭐ ⭐
                     4 -> betAmount * 25  // 🔔 🔔 🔔
+                    3 -> betAmount * 15  // 🍇 🍇 🍇
+                    2 -> betAmount * 12  // 🍊 🍊 🍊
+                    1 -> betAmount * 8   // 🍋 🍋 🍋
+                    0 -> betAmount * 5   // 🍒 🍒 🍒
                     else -> betAmount * 10
                 }
             }
+            // 2 symboles identiques (peu importe lesquels)
             r1 == r2 || r2 == r3 || r1 == r3 -> betAmount * 2
             else -> 0
         }
     }
+
+    // Bottom bar items (navigation principale)
+    val bottomBarItems = listOf(
+        BottomBarItem(
+            icon = AppIcons.Home,
+            selectedIcon = AppIcons.HomeFilled
+        ) {
+            context.startActivity(Intent(context, MainActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) { },
+        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) { },
+        BottomBarItem(AppIcons.Cart, AppIcons.CartFilled) {
+            context.startActivity(Intent(context, com.example.mobile.ShopActivity::class.java))
+        }
+    )
     
     // Gérer l'animation du spin
     LaunchedEffect(spinTrigger) {
         if (spinTrigger == 0) return@LaunchedEffect
-        
+
         isSpinning = true
-        resultMessage = null
-        
-        // Animation des rouleaux
+
+        // Cible finale des rouleaux
         val target1 = Random.nextInt(symbolDrawables.size)
         val target2 = Random.nextInt(symbolDrawables.size)
         val target3 = Random.nextInt(symbolDrawables.size)
-        
-        // Simuler plusieurs tours
-        repeat(20) {
-            reel1 = Random.nextInt(symbolDrawables.size)
-            reel2 = Random.nextInt(symbolDrawables.size)
-            reel3 = Random.nextInt(symbolDrawables.size)
-            delay(50)
+
+        // Durée totale et arrêt progressif de chaque colonne
+        val stepDelay = 80L
+        val stepsReel1 = 20   // ~1.6s
+        val stepsReel2 = 35   // ~2.8s
+        val stepsReel3 = 50   // ~4.0s
+
+        for (i in 0 until stepsReel3) {
+            // Colonne 1 : aléatoire puis valeur finale
+            when {
+                i < stepsReel1 - 1 -> reel1 = Random.nextInt(symbolDrawables.size)
+                i == stepsReel1 - 1 -> reel1 = target1
+                // ensuite on ne touche plus à reel1
+            }
+
+            // Colonne 2
+            when {
+                i < stepsReel2 - 1 -> reel2 = Random.nextInt(symbolDrawables.size)
+                i == stepsReel2 - 1 -> reel2 = target2
+            }
+
+            // Colonne 3
+            when {
+                i < stepsReel3 - 1 -> reel3 = Random.nextInt(symbolDrawables.size)
+                i == stepsReel3 - 1 -> reel3 = target3
+            }
+
+            delay(stepDelay)
         }
-        
-        reel1 = target1
-        reel2 = target2
-        reel3 = target3
         
         // Calculer les gains
         val win = calculateWin(reel1, reel2, reel3, bet)
@@ -142,22 +189,21 @@ fun SlotMachineScreen(
         lastWin = win
 
         if (win > 0) {
-            resultMessage = "Vous avez gagné $win !"
             val isJackpot = (reel1 == reel2 && reel2 == reel3)
             val durationSec = if (isJackpot) 5.0 else 2.5
-            confettiDurationMs = (durationSec * 1000).toLong()
+            // Même configuration de confettis que pour les boutons de test
             confettiParties = listOf(
                 Party(
-                    angle = 90,
+                    angle = -45,
                     spread = 45,
-                    position = Position.Relative(0.0, 0.08),
+                    position = Position.Relative(0.0, 0.26),
                     emitter = Emitter(duration = durationSec.seconds).perSecond(30),
                     fadeOutEnabled = true
                 ),
                 Party(
-                    angle = 90,
+                    angle = -135,
                     spread = 45,
-                    position = Position.Relative(1.0, 0.08),
+                    position = Position.Relative(1.0, 0.26),
                     emitter = Emitter(duration = durationSec.seconds).perSecond(30),
                     fadeOutEnabled = true
                 )
@@ -178,7 +224,6 @@ fun SlotMachineScreen(
                 }
             } catch (_: Exception) { }
         } else {
-            resultMessage = "Essayez encore !"
         }
 
         isSpinning = false
@@ -196,10 +241,8 @@ fun SlotMachineScreen(
         lastWin = win
 
         if (win > 0) {
-            resultMessage = "Vous avez gagné $win !"
             val isJackpot = (reel1 == reel2 && reel2 == reel3)
             val durationSec = if (isJackpot) 5.0 else 2.5
-            confettiDurationMs = (durationSec * 1000).toLong()
             confettiParties = listOf(
                 Party(
                     angle = -45,
@@ -234,7 +277,6 @@ fun SlotMachineScreen(
                 }
             } catch (_: Exception) { }
         } else {
-            resultMessage = "Essayez encore !"
         }
     }
 
@@ -251,20 +293,26 @@ fun SlotMachineScreen(
                 title = "Machine à sous",
                 onBackClick = onBackClick
             )
+        },
+        bottomBar = {
+            AppBottomBar(
+                items = bottomBarItems,
+                selectedIndex = 0
+            )
         }
     ) { innerPadding ->
-
-        LaunchedEffect(confettiParties) {
-            if (confettiParties.isNotEmpty()) {
-                delay(confettiDurationMs)
-                confettiParties = emptyList()
-            }
-        }
 
         if (confettiParties.isNotEmpty()) {
             ConfettiKit(
                 modifier = Modifier.fillMaxSize(),
-                parties = confettiParties
+                parties = confettiParties,
+                onParticleSystemEnded = { _, activeSystems ->
+                    // On enlève le composant seulement quand tous les systèmes ont fini,
+                    // pour laisser les confettis tomber et disparaître en douceur.
+                    if (activeSystems == 0) {
+                        confettiParties = emptyList()
+                    }
+                }
             )
         }
 
@@ -273,9 +321,11 @@ fun SlotMachineScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            val scrollState = rememberScrollState()
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(scrollState)
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -283,10 +333,10 @@ fun SlotMachineScreen(
             // Solde (composant animé réutilisable)
             BalanceHeader(
                 amount = balance,
-                modifier = Modifier.padding(top = 60.dp)
+                modifier = Modifier.padding(top = 8.dp)
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Image de la machine à sous (si disponible)
             Box(
@@ -322,17 +372,6 @@ fun SlotMachineScreen(
                     iconResId = symbolDrawables[reel3],
                     isSpinning = isSpinning,
                     modifier = Modifier.weight(1f)
-                )
-            }
-
-            // Message de résultat
-            if (resultMessage != null) {
-                Text(
-                    text = resultMessage!!,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (lastWin > 0) DarkTextPrimary else DarkTextSecondary,
-                    textAlign = TextAlign.Center
                 )
             }
 
@@ -384,8 +423,6 @@ fun SlotMachineScreen(
                 )
             }
 
-            // Bouton de spin (désactivé pour les tests)
-            /*
             AppButton(
                 text = if (isSpinning) "En cours..." else "Jouer",
                 onClick = { spin() },
@@ -395,50 +432,6 @@ fun SlotMachineScreen(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth()
             )
-            */
-
-            // Boutons de test : perdre, gagner avec 2, gagner avec 3
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AppButton(
-                    text = "Perdre",
-                    onClick = {
-                        // combinaison perdante : 3 symboles différents
-                        applyForcedResult(0, 1, 2)
-                    },
-                    variant = ButtonVariant.Outline,
-                    size = ButtonSize.Medium,
-                    enabled = !isSpinning,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                AppButton(
-                    text = "Gagner (2 symboles)",
-                    onClick = {
-                        // deux symboles identiques, un différent
-                        applyForcedResult(0, 0, 1)
-                    },
-                    variant = ButtonVariant.Primary,
-                    size = ButtonSize.Medium,
-                    enabled = !isSpinning,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                AppButton(
-                    text = "Jackpot (3 symboles)",
-                    onClick = {
-                        // 3 symboles identiques : jackpot (7 7 7)
-                        applyForcedResult(6, 6, 6)
-                    },
-                    variant = ButtonVariant.Primary,
-                    size = ButtonSize.Medium,
-                    enabled = !isSpinning,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
 
             Spacer(modifier = Modifier.height(16.dp))
             }
@@ -452,24 +445,6 @@ fun SlotReel(
     isSpinning: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var rotation by remember { mutableStateOf(0f) }
-    
-    val animatedRotation by animateFloatAsState(
-        targetValue = if (isSpinning) rotation + 360f else rotation,
-        animationSpec = if (isSpinning) {
-            tween(durationMillis = 1000, delayMillis = 0)
-        } else {
-            spring(dampingRatio = 0.6f, stiffness = 300f)
-        },
-        label = "reel_rotation"
-    )
-
-    LaunchedEffect(isSpinning) {
-        if (isSpinning) {
-            rotation += 360f
-        }
-    }
-
     Box(
         modifier = modifier
             .height(120.dp)
@@ -477,14 +452,30 @@ fun SlotReel(
             .background(DarkSurfaceVariant),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = iconResId),
-            contentDescription = null,
-            modifier = Modifier
-                .size(42.dp)
-                .rotate(animatedRotation),
-            contentScale = ContentScale.Fit
-        )
+        AnimatedContent(
+            targetState = iconResId,
+            transitionSpec = {
+                val duration = if (isSpinning) 320 else 260
+                (
+                    slideInVertically(
+                        animationSpec = tween(durationMillis = duration),
+                        initialOffsetY = { fullHeight -> -fullHeight }
+                    ) + fadeIn() togetherWith
+                        slideOutVertically(
+                            animationSpec = tween(durationMillis = duration),
+                            targetOffsetY = { fullHeight -> fullHeight }
+                        ) + fadeOut()
+                    ).using(SizeTransform(clip = false))
+            },
+            label = "slot_reel_symbol"
+        ) { target ->
+            Image(
+                painter = painterResource(id = target),
+                contentDescription = null,
+                modifier = Modifier.size(42.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
     }
 }
 
