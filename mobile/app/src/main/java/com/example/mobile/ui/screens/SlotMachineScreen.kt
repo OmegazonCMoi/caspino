@@ -1,8 +1,16 @@
 package com.example.mobile.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,15 +51,20 @@ import com.example.mobile.R
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppCard
 import com.example.mobile.ui.components.AppHeader
+import com.example.mobile.ui.components.BalanceHeader
 import com.example.mobile.ui.components.ButtonSize
 import com.example.mobile.ui.components.ButtonVariant
-import com.example.mobile.ui.components.CardVariant
-import com.example.mobile.ui.theme.DarkSurface
 import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import android.media.MediaPlayer
+import io.github.vinceglb.confettikit.compose.ConfettiKit
+import io.github.vinceglb.confettikit.core.Party
+import io.github.vinceglb.confettikit.core.Position
+import io.github.vinceglb.confettikit.core.emitter.Emitter
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun SlotMachineScreen(
@@ -65,6 +79,8 @@ fun SlotMachineScreen(
     var lastWin by remember { mutableStateOf(0) }
     var resultMessage by remember { mutableStateOf<String?>(null) }
     var spinTrigger by remember { mutableStateOf(0) }
+    var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
+    var confettiDurationMs by remember { mutableStateOf(0L) }
 
     val symbolDrawables = listOf(
         R.drawable.cherries,
@@ -76,6 +92,10 @@ fun SlotMachineScreen(
         R.drawable.digit_seven
     )
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val mediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.confetti_sound)
+    }
     
     fun calculateWin(r1: Int, r2: Int, r3: Int, betAmount: Int): Int {
         return when {
@@ -120,16 +140,104 @@ fun SlotMachineScreen(
         val win = calculateWin(reel1, reel2, reel3, bet)
         balance += win
         lastWin = win
-        
+
         if (win > 0) {
             resultMessage = "Vous avez gagné $win !"
+            val isJackpot = (reel1 == reel2 && reel2 == reel3)
+            val durationSec = if (isJackpot) 5.0 else 2.5
+            confettiDurationMs = (durationSec * 1000).toLong()
+            confettiParties = listOf(
+                Party(
+                    angle = 90,
+                    spread = 45,
+                    position = Position.Relative(0.0, 0.08),
+                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                    fadeOutEnabled = true
+                ),
+                Party(
+                    angle = 90,
+                    spread = 45,
+                    position = Position.Relative(1.0, 0.08),
+                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                    fadeOutEnabled = true
+                )
+            )
+            try {
+                val volume = if (isJackpot) 1.0f else 0.5f
+                mediaPlayer.setVolume(volume, volume)
+                if (isJackpot) {
+                    repeat(3) {
+                        mediaPlayer.seekTo(0)
+                        mediaPlayer.start()
+                        val durationMs = mediaPlayer.duration.toLong().coerceIn(200, 2000)
+                        delay(durationMs)
+                    }
+                } else {
+                    mediaPlayer.seekTo(0)
+                    mediaPlayer.start()
+                }
+            } catch (_: Exception) { }
         } else {
             resultMessage = "Essayez encore !"
         }
-        
+
         isSpinning = false
     }
-    
+
+    // Utilitaire pour appliquer un résultat forcé (tests)
+    fun applyForcedResult(r1: Int, r2: Int, r3: Int) {
+        // on ne manipule pas isSpinning ici pour garder ça simple pour les tests
+        reel1 = r1
+        reel2 = r2
+        reel3 = r3
+
+        val win = calculateWin(reel1, reel2, reel3, bet)
+        balance += win
+        lastWin = win
+
+        if (win > 0) {
+            resultMessage = "Vous avez gagné $win !"
+            val isJackpot = (reel1 == reel2 && reel2 == reel3)
+            val durationSec = if (isJackpot) 5.0 else 2.5
+            confettiDurationMs = (durationSec * 1000).toLong()
+            confettiParties = listOf(
+                Party(
+                    angle = -45,
+                    spread = 45,
+                    position = Position.Relative(0.0, 0.26),
+                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                    fadeOutEnabled = true
+                ),
+                Party(
+                    angle = -135,
+                    spread = 45,
+                    position = Position.Relative(1.0, 0.26),
+                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                    fadeOutEnabled = true
+                )
+            )
+            try {
+                val volume = if (isJackpot) 1.0f else 0.5f
+                mediaPlayer.setVolume(volume, volume)
+                if (isJackpot) {
+                    scope.launch {
+                        repeat(3) {
+                            mediaPlayer.seekTo(0)
+                            mediaPlayer.start()
+                            val durationMs = mediaPlayer.duration.toLong().coerceIn(200, 2000)
+                            delay(durationMs)
+                        }
+                    }
+                } else {
+                    mediaPlayer.seekTo(0)
+                    mediaPlayer.start()
+                }
+            } catch (_: Exception) { }
+        } else {
+            resultMessage = "Essayez encore !"
+        }
+    }
+
     fun spin() {
         if (isSpinning || balance < bet) return
         
@@ -145,20 +253,36 @@ fun SlotMachineScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+
+        LaunchedEffect(confettiParties) {
+            if (confettiParties.isNotEmpty()) {
+                delay(confettiDurationMs)
+                confettiParties = emptyList()
+            }
+        }
+
+        if (confettiParties.isNotEmpty()) {
+            ConfettiKit(
+                modifier = Modifier.fillMaxSize(),
+                parties = confettiParties
+            )
+        }
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Solde (même style que la homepage)
-            Text(
-                text = "$balance",
-                fontSize = 56.sp,
-                fontWeight = FontWeight.Light,
-                color = DarkTextPrimary,
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+            // Solde (composant animé réutilisable)
+            BalanceHeader(
+                amount = balance,
                 modifier = Modifier.padding(top = 60.dp)
             )
 
@@ -260,7 +384,8 @@ fun SlotMachineScreen(
                 )
             }
 
-            // Bouton de spin
+            // Bouton de spin (désactivé pour les tests)
+            /*
             AppButton(
                 text = if (isSpinning) "En cours..." else "Jouer",
                 onClick = { spin() },
@@ -270,8 +395,53 @@ fun SlotMachineScreen(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth()
             )
+            */
+
+            // Boutons de test : perdre, gagner avec 2, gagner avec 3
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AppButton(
+                    text = "Perdre",
+                    onClick = {
+                        // combinaison perdante : 3 symboles différents
+                        applyForcedResult(0, 1, 2)
+                    },
+                    variant = ButtonVariant.Outline,
+                    size = ButtonSize.Medium,
+                    enabled = !isSpinning,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                AppButton(
+                    text = "Gagner (2 symboles)",
+                    onClick = {
+                        // deux symboles identiques, un différent
+                        applyForcedResult(0, 0, 1)
+                    },
+                    variant = ButtonVariant.Primary,
+                    size = ButtonSize.Medium,
+                    enabled = !isSpinning,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                AppButton(
+                    text = "Jackpot (3 symboles)",
+                    onClick = {
+                        // 3 symboles identiques : jackpot (7 7 7)
+                        applyForcedResult(6, 6, 6)
+                    },
+                    variant = ButtonVariant.Primary,
+                    size = ButtonSize.Medium,
+                    enabled = !isSpinning,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 }
@@ -317,3 +487,5 @@ fun SlotReel(
         )
     }
 }
+
+

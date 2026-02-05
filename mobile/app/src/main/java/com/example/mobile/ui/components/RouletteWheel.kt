@@ -7,22 +7,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,16 +24,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.ui.theme.AccentBlue
-import com.example.mobile.ui.theme.DarkBorder
-import com.example.mobile.ui.theme.DarkSurface
 import com.example.mobile.ui.theme.DarkTextPrimary
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -52,7 +42,6 @@ fun RouletteWheel(
     isConnected: Boolean = true,
     externalSpinCommand: SpinCommand? = null,
     onExternalSpinConsumed: () -> Unit = {},
-    onSpinRequest: (Int?) -> Unit = {},
     onNumberSelected: (Int) -> Unit = {}
 ) {
     val numbers = (0..36).toList()
@@ -73,7 +62,6 @@ fun RouletteWheel(
     val scope = rememberCoroutineScope()
 
     var isSpinning by remember { mutableStateOf(false) }
-    var forcedNumberText by remember { mutableStateOf("") }
     var pendingExternalSpin by remember { mutableStateOf<SpinCommand?>(null) }
     var awaitingServer by remember { mutableStateOf(false) }
 
@@ -133,74 +121,18 @@ fun RouletteWheel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val buttonLabel = when {
-                !isConnected -> "Connexion..."
-                isSpinning -> "Arrêt..."
-                awaitingServer -> "En attente..."
-                else -> "Lancer"
-            }
-            val buttonEnabled = isConnected && !isSpinning && !awaitingServer
-
-            AppButton(
-                text = buttonLabel,
-                onClick = {
-                    if (!isConnected || isSpinning || awaitingServer) return@AppButton
-                    val forced = forcedNumberText.toIntOrNull()?.takeIf { it in 0..36 }
-                    awaitingServer = true
-                    onSpinRequest(forced)
-                },
-                variant = ButtonVariant.Primary,
-                size = ButtonSize.Medium,
-                enabled = buttonEnabled,
-                modifier = Modifier.weight(1f)
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            TextField(
-                value = forcedNumberText,
-                onValueChange = { input ->
-                    forcedNumberText = input.filter { it.isDigit() }.take(2)
-                },
-                label = { Text("Forcer") },
-                placeholder = { Text("0-36") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                keyboardActions = KeyboardActions(onDone = {}),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DarkSurface,
-                    unfocusedContainerColor = DarkSurface,
-                    focusedIndicatorColor = AccentBlue,
-                    unfocusedIndicatorColor = DarkBorder
-                ),
-                modifier = Modifier.width(100.dp),
-                enabled = buttonEnabled
-            )
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(blockSize + 32.dp)
+                .height(blockSize)
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(AccentBlue)
-            )
-
+            // Rangée de numéros
             LazyRow(
                 state = listState,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center),
                 horizontalArrangement = Arrangement.spacedBy(blockSpacing)
             ) {
                 items(totalItems) { index ->
@@ -208,6 +140,19 @@ fun RouletteWheel(
                     RouletteBlock(number = number, size = blockSize)
                 }
             }
+
+            // Barre bleue par-dessus, centrée
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .width(4.dp)
+                    .height(blockSize)
+                    .background(
+                        color = AccentBlue,
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+
+            )
         }
     }
 }
@@ -222,7 +167,11 @@ private fun RouletteBlock(
         modifier = modifier
             .size(size)
             .background(
-                color = DarkSurface.copy(alpha = 0.7f),
+                color = when {
+                    number == 0 -> Color(0xFF1B5E20)        // vert pour le 0
+                    number % 2 == 0 -> Color(0xFFB71C1C)   // rouge pour les pairs
+                    else -> Color(0xFF212121)             // noir pour les impairs
+                },
                 shape = RoundedCornerShape(12.dp)
             ),
         contentAlignment = Alignment.Center

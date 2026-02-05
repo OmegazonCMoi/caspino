@@ -24,7 +24,9 @@ import com.example.mobile.R
 import com.example.mobile.RouletteActivity
 import com.example.mobile.SlotMachineActivity
 import com.example.mobile.SportsBettingActivity
-import com.example.mobile.ui.components.*
+import com.example.mobile.ui.components.AppBottomBar
+import com.example.mobile.ui.components.BalanceHeader
+import com.example.mobile.ui.components.BottomBarItem
 import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
@@ -84,13 +86,10 @@ fun HomeScreen() {
                 .padding(20.dp)
         ) {
 
-            // ===== SCORE HEADER (comme image) =====
-            Text(
-                text = "1,968",
-                fontSize = 56.sp,
-                fontWeight = FontWeight.Light,
-                modifier = Modifier.padding(top = 60.dp),
-                color = DarkTextPrimary
+            // ===== SCORE HEADER (balance animée) =====
+            BalanceHeader(
+                amount = 1968,
+                modifier = Modifier.padding(top = 60.dp)
             )
 
             Spacer(Modifier.height(28.dp))

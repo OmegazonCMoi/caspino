@@ -56,6 +56,7 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.animation:animation-core")
     implementation("com.squareup.okhttp3:okhttp:4.9.1")
+    implementation("io.github.vinceglb:confettikit:0.7.0")
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.activity)
