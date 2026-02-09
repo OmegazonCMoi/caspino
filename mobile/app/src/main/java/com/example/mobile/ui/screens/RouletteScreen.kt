@@ -49,6 +49,7 @@ import com.example.mobile.ui.components.ButtonVariant
 import com.example.mobile.ui.components.CardVariant
 import com.example.mobile.ui.components.RouletteWheel
 import com.example.mobile.ui.components.SpinCommand
+import com.example.mobile.ui.components.ConfettiOverlay
 import com.example.mobile.ui.theme.AccentBlue
 import com.example.mobile.ui.theme.DarkBorder
 import com.example.mobile.ui.theme.DarkSurface
@@ -56,6 +57,10 @@ import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
 import androidx.compose.ui.platform.LocalContext
 import com.example.mobile.ui.icons.AppIcons
+import io.github.vinceglb.confettikit.core.Party
+import io.github.vinceglb.confettikit.core.Position
+import io.github.vinceglb.confettikit.core.emitter.Emitter
+import kotlin.time.Duration.Companion.seconds
 import kotlin.random.Random
 
 @Composable
@@ -68,11 +73,12 @@ fun RouletteScreen(
     // Pour harmoniser avec la SlotMachine, on affiche un solde et une mise simple
     var balance by BalanceState.balance
     var bet by remember { mutableStateOf(10) }
-    var lastResult by remember { mutableStateOf<String?>(null) }
+    var winningNumber by remember { mutableStateOf<Int?>(null) }
     var forcedNumberText by remember { mutableStateOf("") }
     var selectedNumbers by remember { mutableStateOf(setOf<Int>()) }
     var selectedGroups by remember { mutableStateOf(setOf<String>()) }
     var isBettingPhase by remember { mutableStateOf(true) }
+    var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
 
     val context = LocalContext.current
 
@@ -98,7 +104,6 @@ fun RouletteScreen(
             id = spinCommandId,
             number = targetNumber
         )
-        lastResult = "Résultat : $targetNumber"
     }
 
     // Quand on passe en phase "roue", on lance automatiquement un spin
@@ -110,35 +115,38 @@ fun RouletteScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            AppHeader(
-                title = "Roulette",
-                onBackClick = onBackClick
-            )
-        },
-        bottomBar = {
-            AppBottomBar(
-                items = bottomBarItems,
-                selectedIndex = 0
-            )
-        }
-    ) { innerPadding ->
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            val wheelHeight = androidx.compose.ui.unit.min(260.dp, maxHeight * 0.45f)
-            val scrollState = rememberScrollState()
-            Column(
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Scaffold(
+            topBar = {
+                AppHeader(
+                    title = "Roulette",
+                    onBackClick = onBackClick
+                )
+            },
+            bottomBar = {
+                AppBottomBar(
+                    items = bottomBarItems,
+                    selectedIndex = 0
+                )
+            }
+        ) { innerPadding ->
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(innerPadding)
             ) {
+                val wheelHeight = androidx.compose.ui.unit.min(260.dp, maxHeight * 0.45f)
+                val scrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                 // Solde (component animé réutilisable)
                 BalanceHeader(
                     amount = balance,
@@ -188,32 +196,6 @@ fun RouletteScreen(
                                         selectedNumbers + zeroNumber
                                     }
 
-                                    // Mettre à jour le résumé des mises
-                                    fun summaryText(): String {
-                                        val numbersText = if (selectedNumbers.isEmpty()) {
-                                            null
-                                        } else {
-                                            selectedNumbers.sorted().joinToString(", ")
-                                        }
-                                        val groupsText = if (selectedGroups.isEmpty()) {
-                                            null
-                                        } else {
-                                            selectedGroups.joinToString(", ")
-                                        }
-
-                                        return when {
-                                            numbersText == null && groupsText == null ->
-                                                "Aucune mise sélectionnée"
-                                            numbersText != null && groupsText == null ->
-                                                "Mise sur $numbersText"
-                                            numbersText == null && groupsText != null ->
-                                                "Mise sur $groupsText"
-                                            else ->
-                                                "Mise sur $numbersText | $groupsText"
-                                        }
-                                    }
-
-                                    lastResult = summaryText()
                                 },
                                 modifier = Modifier.weight(1f)
                             )
@@ -246,32 +228,6 @@ fun RouletteScreen(
                                                 selectedNumbers + number
                                             }
 
-                                            // Mettre à jour le résumé des mises
-                                            fun summaryText(): String {
-                                                val numbersText = if (selectedNumbers.isEmpty()) {
-                                                    null
-                                                } else {
-                                                    selectedNumbers.sorted().joinToString(", ")
-                                                }
-                                                val groupsText = if (selectedGroups.isEmpty()) {
-                                                    null
-                                                } else {
-                                                    selectedGroups.joinToString(", ")
-                                                }
-
-                                                return when {
-                                                    numbersText == null && groupsText == null ->
-                                                        "Aucune mise sélectionnée"
-                                                    numbersText != null && groupsText == null ->
-                                                        "Mise sur $numbersText"
-                                                    numbersText == null && groupsText != null ->
-                                                        "Mise sur $groupsText"
-                                                    else ->
-                                                        "Mise sur $numbersText | $groupsText"
-                                                }
-                                            }
-
-                                            lastResult = summaryText()
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
@@ -308,27 +264,6 @@ fun RouletteScreen(
                                                 selectedGroups + id
                                             }
 
-                                            val numbersText = if (selectedNumbers.isEmpty()) {
-                                                null
-                                            } else {
-                                                selectedNumbers.sorted().joinToString(", ")
-                                            }
-                                            val groupsText = if (selectedGroups.isEmpty()) {
-                                                null
-                                            } else {
-                                                selectedGroups.joinToString(", ")
-                                            }
-
-                                            lastResult = when {
-                                                numbersText == null && groupsText == null ->
-                                                    "Aucune mise sélectionnée"
-                                                numbersText != null && groupsText == null ->
-                                                    "Mise sur $numbersText"
-                                                numbersText == null && groupsText != null ->
-                                                    "Mise sur $groupsText"
-                                                else ->
-                                                    "Mise sur $numbersText | $groupsText"
-                                            }
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
@@ -368,27 +303,8 @@ fun RouletteScreen(
                                                 selectedGroups + id
                                             }
 
-                                            val numbersText = if (selectedNumbers.isEmpty()) {
-                                                null
-                                            } else {
-                                                selectedNumbers.sorted().joinToString(", ")
-                                            }
-                                            val groupsText = if (selectedGroups.isEmpty()) {
-                                                null
-                                            } else {
-                                                selectedGroups.joinToString(", ")
-                                            }
-
-                                            lastResult = when {
-                                                numbersText == null && groupsText == null ->
-                                                    "Aucune mise sélectionnée"
-                                                numbersText != null && groupsText == null ->
-                                                    "Mise sur $numbersText"
-                                                numbersText == null && groupsText != null ->
-                                                    "Mise sur $groupsText"
-                                                else ->
-                                                    "Mise sur $numbersText | $groupsText"
-                                            }
+                                            // ici on ne met plus à jour de texte de résultat,
+                                            // seulement les sélections de mises
                                         },
                                         modifier = Modifier.weight(1f)
                                     )
@@ -402,13 +318,13 @@ fun RouletteScreen(
                         AppButton(
                             text = "Valider les mises",
                             onClick = {
-                                if (selectedNumbers.isNotEmpty()) {
+                                if (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) {
                                     isBettingPhase = false
                                 }
                             },
                             variant = ButtonVariant.Primary,
                             size = ButtonSize.Medium,
-                            enabled = selectedNumbers.isNotEmpty(),
+                            enabled = selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty(),
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -434,6 +350,33 @@ fun RouletteScreen(
                                 externalSpinCommand = currentSpinCommand,
                                 onExternalSpinConsumed = {
                                     currentSpinCommand = null
+                                },
+                                onNumberSelected = { number ->
+                                    winningNumber = number
+
+                                    // Déclenche les confettis uniquement si au moins une mise est gagnante
+                                    val hasWinningNumber = selectedNumbers.contains(number)
+                                    val hasWinningGroup = selectedGroups.any { isWinningGroup(it, number) }
+
+                                    if (hasWinningNumber || hasWinningGroup) {
+                                        val durationSec = 3.0
+                                        confettiParties = listOf(
+                                            Party(
+                                                angle = -45,
+                                                spread = 45,
+                                                position = Position.Relative(0.0, 0.26),
+                                                emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                                                fadeOutEnabled = true
+                                            ),
+                                            Party(
+                                                angle = -135,
+                                                spread = 45,
+                                                position = Position.Relative(1.0, 0.26),
+                                                emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                                                fadeOutEnabled = true
+                                            )
+                                        )
+                                    }
                                 }
                             )
                         }
@@ -460,9 +403,11 @@ fun RouletteScreen(
                                                     isRouletteRed(number) -> Color(0xFFB71C1C) // rouge
                                                     else -> Color(0xFF111111) // noir
                                                 }
+                                                val isWinner = winningNumber != null && winningNumber == number
                                                 RouletteBetChipStatic(
                                                     label = number.toString(),
                                                     baseColor = baseColor,
+                                                    isWinner = isWinner,
                                                     modifier = Modifier.weight(1f)
                                                 )
                                             }
@@ -481,9 +426,11 @@ fun RouletteScreen(
                                         dozenLabels.forEach { label ->
                                             val id = "D_$label"
                                             if (selectedGroups.contains(id)) {
+                                                val isWinner = winningNumber != null && isWinningGroup(id, winningNumber!!)
                                                 RouletteBetChipStatic(
                                                     label = label,
                                                     baseColor = Color(0xFF263238),
+                                                    isWinner = isWinner,
                                                     modifier = Modifier.weight(1f)
                                                 )
                                             }
@@ -510,9 +457,11 @@ fun RouletteScreen(
                                                     "BLACK" -> Color(0xFF111111)
                                                     else -> Color(0xFF263238)
                                                 }
+                                                val isWinner = winningNumber != null && isWinningGroup(id, winningNumber!!)
                                                 RouletteBetChipStatic(
                                                     label = label,
                                                     baseColor = baseColor,
+                                                    isWinner = isWinner,
                                                     modifier = Modifier.weight(1f)
                                                 )
                                             }
@@ -522,33 +471,12 @@ fun RouletteScreen(
                             }
                         }
 
-                        // Message de résultat
-                        if (lastResult != null) {
-                            Text(
-                                text = lastResult!!,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = DarkTextSecondary,
-                                textAlign = TextAlign.Center
-                            )
-                        } else {
-                            Text(
-                                text = "La roue tourne...",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = DarkTextSecondary,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
                         // Bouton pour revenir manuellement à l'étape de mise
                         AppButton(
                             text = "Nouvelle mise",
                             onClick = {
                                 isBettingPhase = true
-                                // on garde les sélections et le dernier résultat pour l'instant
+                                // on garde les sélections et les mises
                             },
                             variant = ButtonVariant.Primary,
                             size = ButtonSize.Medium,
@@ -560,6 +488,13 @@ fun RouletteScreen(
                 }
             }
         }
+
+        // Overlay de confettis au premier plan
+        ConfettiOverlay(
+            parties = confettiParties,
+            onFinished = { confettiParties = emptyList() },
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
@@ -571,6 +506,23 @@ private fun isRouletteRed(number: Int): Boolean {
         19, 21, 23, 25, 27,
         30, 32, 34, 36
     )
+}
+
+// Vérifie si un groupe de mise est gagnant pour un numéro donné
+private fun isWinningGroup(groupId: String, number: Int): Boolean {
+    if (number !in 0..36) return false
+    return when (groupId) {
+        "PAIR" -> number != 0 && number % 2 == 0
+        "IMPAIR" -> number % 2 == 1
+        "LOW" -> number in 1..18
+        "HIGH" -> number in 19..36
+        "RED" -> isRouletteRed(number)
+        "BLACK" -> number != 0 && !isRouletteRed(number)
+        "D_1ère 12" -> number in 1..12
+        "D_2ème 12" -> number in 13..24
+        "D_3ème 12" -> number in 25..36
+        else -> false
+    }
 }
 
 @Composable
@@ -624,11 +576,18 @@ private fun RouletteBetChip(
 private fun RouletteBetChipStatic(
     label: String,
     baseColor: Color,
+    isWinner: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(8.dp)
-    val backgroundColor = baseColor.copy(alpha = 0.9f)
-    val borderColor = if (baseColor == Color(0xFF111111)) {
+    val backgroundColor = if (isWinner) {
+        baseColor.copy(alpha = 1.0f)
+    } else {
+        baseColor.copy(alpha = 0.9f)
+    }
+    val borderColor = if (isWinner) {
+        AccentBlue
+    } else if (baseColor == Color(0xFF111111)) {
         Color(0xFF444444)
     } else {
         darkenColor(baseColor, 0.75f)
@@ -637,14 +596,14 @@ private fun RouletteBetChipStatic(
     Box(
         modifier = modifier
             .height(32.dp)
-            .border(1.dp, borderColor, shape)
+            .border(2.dp, borderColor, shape)
             .background(backgroundColor, shape),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
             color = Color.White,
             textAlign = TextAlign.Center
         )

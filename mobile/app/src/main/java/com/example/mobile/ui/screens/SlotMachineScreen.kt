@@ -70,7 +70,7 @@ import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
 import android.media.MediaPlayer
-import io.github.vinceglb.confettikit.compose.ConfettiKit
+import com.example.mobile.ui.components.ConfettiOverlay
 import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
@@ -287,49 +287,38 @@ fun SlotMachineScreen(
         spinTrigger++
     }
 
-    Scaffold(
-        topBar = {
-            AppHeader(
-                title = "Machine à sous",
-                onBackClick = onBackClick
-            )
-        },
-        bottomBar = {
-            AppBottomBar(
-                items = bottomBarItems,
-                selectedIndex = 0
-            )
-        }
-    ) { innerPadding ->
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Scaffold(
+            topBar = {
+                AppHeader(
+                    title = "Machine à sous",
+                    onBackClick = onBackClick
+                )
+            },
+            bottomBar = {
+                AppBottomBar(
+                    items = bottomBarItems,
+                    selectedIndex = 0
+                )
+            }
+        ) { innerPadding ->
 
-        if (confettiParties.isNotEmpty()) {
-            ConfettiKit(
-                modifier = Modifier.fillMaxSize(),
-                parties = confettiParties,
-                onParticleSystemEnded = { _, activeSystems ->
-                    // On enlève le composant seulement quand tous les systèmes ont fini,
-                    // pour laisser les confettis tomber et disparaître en douceur.
-                    if (activeSystems == 0) {
-                        confettiParties = emptyList()
-                    }
-                }
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            val scrollState = rememberScrollState()
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(innerPadding)
             ) {
+                val scrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
             // Solde (composant animé réutilisable)
             BalanceHeader(
                 amount = balance,
@@ -434,8 +423,16 @@ fun SlotMachineScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
+
+        // Confettis au tout premier plan, par-dessus le header, le contenu et la bottom bar
+        ConfettiOverlay(
+            parties = confettiParties,
+            onFinished = { confettiParties = emptyList() },
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 

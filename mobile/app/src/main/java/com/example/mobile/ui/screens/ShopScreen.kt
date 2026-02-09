@@ -51,6 +51,7 @@ fun ShopScreen(
     onBackClick: () -> Unit
 ) {
     var balance by BalanceState.balance
+    val hasClaimedFreeToday = BalanceState.hasClaimedFreeToday()
 
     val freeOffer = PinosOffer(
         label = "Starter",
@@ -72,11 +73,9 @@ fun ShopScreen(
             .background(DarkBackground)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
+            // Header pleine largeur, aligné comme sur les autres écrans
             AppHeader(
                 title = "Acheter des pinos",
                 onBackClick = onBackClick
@@ -84,53 +83,65 @@ fun ShopScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            BalanceHeader(
-                amount = balance,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            // Contenu scrollable avec padding horizontal
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+            ) {
+                BalanceHeader(
+                    amount = balance,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
 
-            Text(
-                text = "La monnaie de l'app pour jouer à tous les jeux.",
-                fontSize = 14.sp,
-                color = DarkTextSecondary,
-                modifier = Modifier.padding(top = 12.dp)
-            )
+                Text(
+                    text = "La monnaie de l'app pour jouer à tous les jeux.",
+                    fontSize = 14.sp,
+                    color = DarkTextSecondary,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            // Offre gratuite : toute la largeur
-            PinosOfferCardFull(
-                offer = freeOffer,
-                onBuyClick = {
-                    BalanceState.addPinos(freeOffer.pinos)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Offres payantes : 2 par 2
-            paidOffers.chunked(2).forEach { rowOffers ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    rowOffers.forEach { offer ->
-                        PinosOfferCardHalf(
-                            offer = offer,
-                            onBuyClick = {
-                                // TODO: IAP
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
+                // Offre gratuite : toute la largeur
+                PinosOfferCardFull(
+                    offer = freeOffer,
+                    enabled = !hasClaimedFreeToday,
+                    onBuyClick = {
+                        if (!BalanceState.hasClaimedFreeToday()) {
+                            BalanceState.addPinos(freeOffer.pinos)
+                            BalanceState.markFreeClaimedToday()
+                        }
                     }
-                    if (rowOffers.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Offres payantes : 2 par 2
+                paidOffers.chunked(2).forEach { rowOffers ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        rowOffers.forEach { offer ->
+                            PinosOfferCardHalf(
+                                offer = offer,
+                                onBuyClick = {
+                                    // TODO: IAP
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (rowOffers.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -138,6 +149,7 @@ fun ShopScreen(
 @Composable
 private fun PinosOfferCardFull(
     offer: PinosOffer,
+    enabled: Boolean,
     onBuyClick: () -> Unit
 ) {
     Row(
@@ -176,10 +188,11 @@ private fun PinosOfferCardFull(
             )
         }
         AppButton(
-            text = offer.priceDisplay,
+            text = if (enabled) offer.priceDisplay else "Déjà récupéré",
             onClick = onBuyClick,
             variant = ButtonVariant.Primary,
-            size = ButtonSize.Medium
+            size = ButtonSize.Medium,
+            enabled = enabled
         )
     }
 }

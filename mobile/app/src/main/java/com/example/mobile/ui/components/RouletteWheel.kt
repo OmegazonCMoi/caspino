@@ -82,8 +82,6 @@ fun RouletteWheel(
         val targetCenterPx = targetIndex * itemWidthPx + (itemWidthPx / 2f)
         val targetScrollPx = targetCenterPx - (screenWidthPx / 2f)
 
-        onNumberSelected(targetNumber)
-
         isSpinning = true
         scope.launch {
             scroller.snapTo(0f)
@@ -95,6 +93,8 @@ fun RouletteWheel(
                 )
             )
             isSpinning = false
+            // Signale le numéro gagnant une fois l'animation terminée
+            onNumberSelected(targetNumber)
         }
     }
 
