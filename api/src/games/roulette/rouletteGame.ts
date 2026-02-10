@@ -1,5 +1,5 @@
 import WebSocket from "ws"
-import { calculateGains } from "./calculateRouletteGains.usecase.ts"
+import { calculateGains } from "./calculateRouletteGains.ts"
 import { RoulettePhase, type Bet } from "./utils/roulette.model.ts"
 
 export class RouletteGame {
@@ -37,11 +37,11 @@ export class RouletteGame {
         break
       case RoulettePhase.SPINNING:
         this.resolveGame()
-        this.setPhase(RoulettePhase.RESULT, 5_000)
+        this.setPhase(RoulettePhase.RESULT, 10_000)
         break
       case RoulettePhase.RESULT:
         this.reset()
-        this.setPhase(RoulettePhase.BETTING, 15_000)
+        this.setPhase(RoulettePhase.BETTING, 30_000)
         break
     }
   }

@@ -199,14 +199,3 @@ Si besoin, se référer au serveur pour la logique exacte :
 `games/roulette/RouletteGame.ts`
 
 `calculateRouletteGains.usecase.ts`
-
----
-
-Si tu veux, je peux aussi :
-
-- faire une **version ultra courte** (1 page mobile dev)
-- ajouter un **diagramme de flow**
-- préparer une **doc commune pour tous les jeux**
-- ajouter un **contrat TypeScript partagé client/server**
-
-Dis-moi 👌
