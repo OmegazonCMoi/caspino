@@ -76,8 +76,24 @@ import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
 import kotlin.random.Random
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicReference
+
+private const val SLOTS_WS_URL = "ws://10.109.150.233:5700"
+
+private data class SlotsServerResult(
+    val slotResult: List<Int>,
+    val gains: Int
+)
 
 @Composable
 fun SlotMachineScreen(
@@ -119,6 +135,12 @@ fun SlotMachineScreen(
         MediaPlayer.create(context, R.raw.slotmachine_stop)
     }
 
+    // WebSocket / API slots
+    val okHttpClient = remember { OkHttpClient() }
+    var webSocket by remember { mutableStateOf<WebSocket?>(null) }
+    var webSocketConnected by remember { mutableStateOf(false) }
+    val pendingResultRef = remember { AtomicReference<CompletableDeferred<SlotsServerResult?>?>(null) }
+
     DisposableEffect(Unit) {
         onDispose {
             try {
@@ -133,27 +155,67 @@ fun SlotMachineScreen(
             try {
                 spinStopMediaPlayer.release()
             } catch (_: Exception) { }
+            try {
+                webSocket?.close(1000, null)
+            } catch (_: Exception) { }
+            try {
+                okHttpClient.dispatcher.executorService.shutdown()
+            } catch (_: Exception) { }
         }
     }
-    
-    fun calculateWin(r1: Int, r2: Int, r3: Int, betAmount: Int): Int {
-        return when {
-            // 3 symboles identiques
-            r1 == r2 && r2 == r3 -> {
-                when (r1) {
-                    6 -> betAmount * 100 // 7️⃣ 7️⃣ 7️⃣  (jackpot max)
-                    5 -> betAmount * 50  // ⭐ ⭐ ⭐
-                    4 -> betAmount * 25  // 🔔 🔔 🔔
-                    3 -> betAmount * 15  // 🍇 🍇 🍇
-                    2 -> betAmount * 12  // 🍊 🍊 🍊
-                    1 -> betAmount * 8   // 🍋 🍋 🍋
-                    0 -> betAmount * 5   // 🍒 🍒 🍒
-                    else -> betAmount * 10
+
+    // Connexion au WebSocket des slots (API)
+    LaunchedEffect(Unit) {
+        try {
+            val request = Request.Builder()
+                .url(SLOTS_WS_URL)
+                .build()
+
+            webSocket = okHttpClient.newWebSocket(
+                request,
+                object : WebSocketListener() {
+                    override fun onOpen(ws: WebSocket, response: Response) {
+                        webSocketConnected = true
+                    }
+
+                    override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                        webSocketConnected = false
+                    }
+
+                    override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                        webSocketConnected = false
+                    }
+
+                    override fun onMessage(ws: WebSocket, text: String) {
+                        try {
+                            val json = JSONObject(text)
+                            val type = json.optString("type")
+                            if (type == "BET_RESULT") {
+                                val payload = json.getJSONObject("payload")
+                                val slotResultJson = payload.getJSONArray("slotResult")
+                                val slotResult = buildList {
+                                    for (i in 0 until slotResultJson.length()) {
+                                        val value = slotResultJson.getString(i)
+                                        val index = value.toIntOrNull()?.minus(1) ?: 0
+                                        add(index)
+                                    }
+                                }
+                                val gains = payload.getInt("gains")
+                                val deferred = pendingResultRef.getAndSet(null)
+                                deferred?.complete(SlotsServerResult(slotResult, gains))
+                            } else if (type == "ERROR") {
+                                val deferred = pendingResultRef.getAndSet(null)
+                                deferred?.complete(null)
+                            }
+                        } catch (_: Exception) {
+                            val deferred = pendingResultRef.getAndSet(null)
+                            deferred?.complete(null)
+                        }
+                    }
                 }
-            }
-            // 2 symboles identiques (peu importe lesquels)
-            r1 == r2 || r2 == r3 || r1 == r3 -> betAmount * 2
-            else -> 0
+            )
+        } catch (_: Exception) {
+            webSocketConnected = false
         }
     }
 
@@ -176,6 +238,41 @@ fun SlotMachineScreen(
     LaunchedEffect(spinTrigger) {
         if (spinTrigger == 0) return@LaunchedEffect
 
+        // Essayer de récupérer le résultat depuis le serveur WebSocket
+        val serverResult: SlotsServerResult? =
+            if (webSocketConnected && webSocket != null) {
+                val ws = webSocket
+                try {
+                    val deferred = CompletableDeferred<SlotsServerResult?>()
+                    pendingResultRef.set(deferred)
+
+                    val msg = JSONObject()
+                        .put("type", "PLACE_BET")
+                        .put("payload", bet)
+
+                    ws?.send(msg.toString())
+
+                    withTimeoutOrNull(3_000L) {
+                        deferred.await()
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
+
+        // Si l'API ne répond pas, on annule le spin et on rembourse la mise
+        if (serverResult == null || serverResult.slotResult.size < 3) {
+            balance += bet
+            return@LaunchedEffect
+        }
+
+        val indices = serverResult.slotResult
+        val target1 = indices[0].coerceIn(0, symbolDrawables.lastIndex)
+        val target2 = indices[1].coerceIn(0, symbolDrawables.lastIndex)
+        val target3 = indices[2].coerceIn(0, symbolDrawables.lastIndex)
+
         isSpinning = true
         // Son de démarrage, suivi instantanément du son de spin en boucle
         try {
@@ -187,11 +284,6 @@ fun SlotMachineScreen(
             spinLoopMediaPlayer.start()
         } catch (_: Exception) { }
         // La mise est déjà déduite dans spin() au clic sur "Jouer"
-
-        // Cible finale des rouleaux
-        val target1 = Random.nextInt(symbolDrawables.size)
-        val target2 = Random.nextInt(symbolDrawables.size)
-        val target3 = Random.nextInt(symbolDrawables.size)
 
         // Durée totale et arrêt progressif de chaque colonne
         val stepDelay = 80L
@@ -252,7 +344,7 @@ fun SlotMachineScreen(
         } catch (_: Exception) { }
         
         // Calculer les gains et créditer les pinos (au bon moment : une fois les rouleaux arrêtés)
-        val win = calculateWin(reel1, reel2, reel3, bet)
+        val win = serverResult.gains
         if (win > 0) {
             BalanceState.addPinos(win)
         }
@@ -299,57 +391,13 @@ fun SlotMachineScreen(
         isSpinning = false
     }
 
-    // Utilitaire pour appliquer un résultat forcé (tests)
+    // Utilitaire pour appliquer un résultat visuel forcé (tests UI uniquement)
     fun applyForcedResult(r1: Int, r2: Int, r3: Int) {
-        // on ne manipule pas isSpinning ici pour garder ça simple pour les tests
+        // On ne touche pas au solde ni aux gains ici : uniquement l'affichage
         reel1 = r1
         reel2 = r2
         reel3 = r3
-
-        val win = calculateWin(reel1, reel2, reel3, bet)
-        if (win > 0) {
-            BalanceState.addPinos(win)
-        }
-        lastWin = win
-
-        if (win > 0) {
-            val isJackpot = (reel1 == reel2 && reel2 == reel3)
-            val durationSec = if (isJackpot) 5.0 else 2.5
-            confettiParties = listOf(
-                Party(
-                    angle = -45,
-                    spread = 45,
-                    position = Position.Relative(0.0, 0.26),
-                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                    fadeOutEnabled = true
-                ),
-                Party(
-                    angle = -135,
-                    spread = 45,
-                    position = Position.Relative(1.0, 0.26),
-                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                    fadeOutEnabled = true
-                )
-            )
-            try {
-                val volume = if (isJackpot) 1.0f else 0.5f
-                winMediaPlayer.setVolume(volume, volume)
-                if (isJackpot) {
-                    scope.launch {
-                        repeat(3) {
-                            winMediaPlayer.seekTo(0)
-                            winMediaPlayer.start()
-                            val durationMs = winMediaPlayer.duration.toLong().coerceIn(200, 2000)
-                            delay(durationMs)
-                        }
-                    }
-                } else {
-                    winMediaPlayer.seekTo(0)
-                    winMediaPlayer.start()
-                }
-            } catch (_: Exception) { }
-        } else {
-        }
+        lastWin = 0
     }
 
     fun spin() {
