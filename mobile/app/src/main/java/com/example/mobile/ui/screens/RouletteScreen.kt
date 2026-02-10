@@ -319,12 +319,16 @@ fun RouletteScreen(
                             text = "Valider les mises",
                             onClick = {
                                 if (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) {
-                                    isBettingPhase = false
+                                    val totalStake = bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1)
+                                    if (balance >= totalStake) {
+                                        BalanceState.addPinos(-totalStake)
+                                        isBettingPhase = false
+                                    }
                                 }
                             },
                             variant = ButtonVariant.Primary,
                             size = ButtonSize.Medium,
-                            enabled = selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty(),
+                            enabled = (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) && balance >= bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1),
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -353,6 +357,17 @@ fun RouletteScreen(
                                 },
                                 onNumberSelected = { number ->
                                     winningNumber = number
+
+                                    // Calcul des gains et crédit des pinos (appelé quand la roue a fini de tourner)
+                                    val payout = calculateRoulettePayout(
+                                        selectedNumbers = selectedNumbers,
+                                        selectedGroups = selectedGroups,
+                                        winningNumber = number,
+                                        betPerSelection = bet
+                                    )
+                                    if (payout > 0) {
+                                        BalanceState.addPinos(payout)
+                                    }
 
                                     // Déclenche les confettis uniquement si au moins une mise est gagnante
                                     val hasWinningNumber = selectedNumbers.contains(number)
@@ -486,6 +501,7 @@ fun RouletteScreen(
                         )
                     }
                 }
+                }
             }
         }
 
@@ -508,6 +524,25 @@ private fun isRouletteRed(number: Int): Boolean {
     )
 }
 
+// Calcule le gain total roulette (mise rendue + gains) pour le numéro gagnant
+private fun calculateRoulettePayout(
+    selectedNumbers: Set<Int>,
+    selectedGroups: Set<String>,
+    winningNumber: Int,
+    betPerSelection: Int
+): Int {
+    var payout = 0
+    if (winningNumber in selectedNumbers) {
+        payout += 36 * betPerSelection // plein : 35:1 + mise
+    }
+    selectedGroups.forEach { groupId ->
+        if (isWinningGroup(groupId, winningNumber)) {
+            payout += if (groupId.startsWith("D_")) 3 * betPerSelection else 2 * betPerSelection // douzaine 2:1, autres 1:1
+        }
+    }
+    return payout
+}
+
 // Vérifie si un groupe de mise est gagnant pour un numéro donné
 private fun isWinningGroup(groupId: String, number: Int): Boolean {
     if (number !in 0..36) return false
@@ -526,7 +561,7 @@ private fun isWinningGroup(groupId: String, number: Int): Boolean {
 }
 
 @Composable
-private fun RouletteBetChip(
+fun RouletteBetChip(
     label: String,
     isSelected: Boolean,
     baseColor: Color,
@@ -573,7 +608,7 @@ private fun RouletteBetChip(
 }
 
 @Composable
-private fun RouletteBetChipStatic(
+fun RouletteBetChipStatic(
     label: String,
     baseColor: Color,
     isWinner: Boolean = false,

@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,8 +104,36 @@ fun SlotMachineScreen(
     )
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val mediaPlayer = remember {
+    val winMediaPlayer = remember {
         MediaPlayer.create(context, R.raw.confetti_sound)
+    }
+    val spinStartMediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.slotmachine_start)
+    }
+    val spinLoopMediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.slotmachine_spinning).apply {
+            isLooping = true
+        }
+    }
+    val spinStopMediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.slotmachine_stop)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                winMediaPlayer.release()
+            } catch (_: Exception) { }
+            try {
+                spinStartMediaPlayer.release()
+            } catch (_: Exception) { }
+            try {
+                spinLoopMediaPlayer.release()
+            } catch (_: Exception) { }
+            try {
+                spinStopMediaPlayer.release()
+            } catch (_: Exception) { }
+        }
     }
     
     fun calculateWin(r1: Int, r2: Int, r3: Int, betAmount: Int): Int {
@@ -148,6 +177,16 @@ fun SlotMachineScreen(
         if (spinTrigger == 0) return@LaunchedEffect
 
         isSpinning = true
+        // Son de démarrage, suivi instantanément du son de spin en boucle
+        try {
+            spinStartMediaPlayer.seekTo(0)
+            spinStartMediaPlayer.start()
+        } catch (_: Exception) { }
+        try {
+            spinLoopMediaPlayer.seekTo(0)
+            spinLoopMediaPlayer.start()
+        } catch (_: Exception) { }
+        // La mise est déjà déduite dans spin() au clic sur "Jouer"
 
         // Cible finale des rouleaux
         val target1 = Random.nextInt(symbolDrawables.size)
@@ -164,28 +203,59 @@ fun SlotMachineScreen(
             // Colonne 1 : aléatoire puis valeur finale
             when {
                 i < stepsReel1 - 1 -> reel1 = Random.nextInt(symbolDrawables.size)
-                i == stepsReel1 - 1 -> reel1 = target1
+                i == stepsReel1 - 1 -> {
+                    reel1 = target1
+                    // Son d'arrêt du premier rouleau
+                    try {
+                        spinStopMediaPlayer.seekTo(0)
+                        spinStopMediaPlayer.start()
+                    } catch (_: Exception) { }
+                }
                 // ensuite on ne touche plus à reel1
             }
 
             // Colonne 2
             when {
                 i < stepsReel2 - 1 -> reel2 = Random.nextInt(symbolDrawables.size)
-                i == stepsReel2 - 1 -> reel2 = target2
+                i == stepsReel2 - 1 -> {
+                    reel2 = target2
+                    // Son d'arrêt du deuxième rouleau
+                    try {
+                        spinStopMediaPlayer.seekTo(0)
+                        spinStopMediaPlayer.start()
+                    } catch (_: Exception) { }
+                }
             }
 
             // Colonne 3
             when {
                 i < stepsReel3 - 1 -> reel3 = Random.nextInt(symbolDrawables.size)
-                i == stepsReel3 - 1 -> reel3 = target3
+                i == stepsReel3 - 1 -> {
+                    reel3 = target3
+                    // Son d'arrêt du troisième rouleau
+                    try {
+                        spinStopMediaPlayer.seekTo(0)
+                        spinStopMediaPlayer.start()
+                    } catch (_: Exception) { }
+                }
             }
 
             delay(stepDelay)
         }
+
+        // Arrête le son de spin quand les rouleaux se sont arrêtés
+        try {
+            if (spinLoopMediaPlayer.isPlaying) {
+                spinLoopMediaPlayer.pause()
+                spinLoopMediaPlayer.seekTo(0)
+            }
+        } catch (_: Exception) { }
         
-        // Calculer les gains
+        // Calculer les gains et créditer les pinos (au bon moment : une fois les rouleaux arrêtés)
         val win = calculateWin(reel1, reel2, reel3, bet)
-        balance += win
+        if (win > 0) {
+            BalanceState.addPinos(win)
+        }
         lastWin = win
 
         if (win > 0) {
@@ -210,17 +280,17 @@ fun SlotMachineScreen(
             )
             try {
                 val volume = if (isJackpot) 1.0f else 0.5f
-                mediaPlayer.setVolume(volume, volume)
+                winMediaPlayer.setVolume(volume, volume)
                 if (isJackpot) {
                     repeat(3) {
-                        mediaPlayer.seekTo(0)
-                        mediaPlayer.start()
-                        val durationMs = mediaPlayer.duration.toLong().coerceIn(200, 2000)
+                        winMediaPlayer.seekTo(0)
+                        winMediaPlayer.start()
+                        val durationMs = winMediaPlayer.duration.toLong().coerceIn(200, 2000)
                         delay(durationMs)
                     }
                 } else {
-                    mediaPlayer.seekTo(0)
-                    mediaPlayer.start()
+                    winMediaPlayer.seekTo(0)
+                    winMediaPlayer.start()
                 }
             } catch (_: Exception) { }
         } else {
@@ -237,7 +307,9 @@ fun SlotMachineScreen(
         reel3 = r3
 
         val win = calculateWin(reel1, reel2, reel3, bet)
-        balance += win
+        if (win > 0) {
+            BalanceState.addPinos(win)
+        }
         lastWin = win
 
         if (win > 0) {
@@ -261,19 +333,19 @@ fun SlotMachineScreen(
             )
             try {
                 val volume = if (isJackpot) 1.0f else 0.5f
-                mediaPlayer.setVolume(volume, volume)
+                winMediaPlayer.setVolume(volume, volume)
                 if (isJackpot) {
                     scope.launch {
                         repeat(3) {
-                            mediaPlayer.seekTo(0)
-                            mediaPlayer.start()
-                            val durationMs = mediaPlayer.duration.toLong().coerceIn(200, 2000)
+                            winMediaPlayer.seekTo(0)
+                            winMediaPlayer.start()
+                            val durationMs = winMediaPlayer.duration.toLong().coerceIn(200, 2000)
                             delay(durationMs)
                         }
                     }
                 } else {
-                    mediaPlayer.seekTo(0)
-                    mediaPlayer.start()
+                    winMediaPlayer.seekTo(0)
+                    winMediaPlayer.start()
                 }
             } catch (_: Exception) { }
         } else {
