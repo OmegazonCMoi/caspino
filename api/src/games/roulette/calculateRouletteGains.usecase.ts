@@ -7,6 +7,22 @@ import {
   MULTIPLIERS,
 } from "./utils/roulette.model.ts"
 
+export const calculateGains = async (lastNumber: number, bets: Bet[]) => {
+  const gains = await Promise.all(
+    bets.map(async (bet) => {
+      if (isNumberBet(bet)) return calculateNumberBetGains(bet, lastNumber)
+      if (isTwoTimesBet(bet)) return calculateTwoTimesBetGains(bet, lastNumber)
+      if (isThreeTimesBet(bet))
+        return calculateThreeTimesBetGains(bet, lastNumber)
+
+      console.error("Unknown bet type:", bet)
+      return 0
+    }),
+  )
+
+  return gains.reduce((acc, gain) => acc + gain, 0)
+}
+
 const isNumberBet = (bet: Bet): bet is NumberBet => {
   return Array.isArray((bet as NumberBet).numbers)
 }
@@ -19,22 +35,6 @@ const isThreeTimesBet = (bet: Bet): bet is ThreeTimesBet => {
   return typeof (bet as ThreeTimesBet).dozen === "string"
 }
 
-export const calculateGains = async (lastNumber: number, bets: Bet[]) => {
-  const gains = await Promise.all(
-    bets.map(async (bet) => {
-      if (isNumberBet(bet)) return calculateNumberBetGains(bet, lastNumber)
-      if (isTwoTimesBet(bet)) return calculateTwoTimesBetGains(bet, lastNumber)
-      if (isThreeTimesBet(bet))
-        return calculateThreeTimesBetGains(bet, lastNumber)
-
-      console.error("Unknown bet type:", bet)
-      return 0
-    })
-  )
-
-  return gains.reduce((acc, gain) => acc + gain, 0)
-}
-
 const isRed = (number: number): boolean => redNumbers.includes(number)
 const isEven = (number: number): boolean => number % 2 === 0
 const isInRange = (number: number, min: number, max: number): boolean =>
@@ -42,7 +42,7 @@ const isInRange = (number: number, min: number, max: number): boolean =>
 
 const calculateNumberBetGains = (
   bet: NumberBet,
-  lastNumber: number
+  lastNumber: number,
 ): number => {
   if (bet.numbers.includes(lastNumber)) {
     const total = (bet.amount * MULTIPLIERS.STRAIGHT_UP) / bet.numbers.length
@@ -53,7 +53,7 @@ const calculateNumberBetGains = (
 
 const calculateTwoTimesBetGains = (
   bet: TwoTimesBet,
-  lastNumber: number
+  lastNumber: number,
 ): number => {
   if (lastNumber === 0) return 0
 
@@ -83,7 +83,7 @@ const calculateTwoTimesBetGains = (
 
 const calculateThreeTimesBetGains = (
   bet: ThreeTimesBet,
-  lastNumber: number
+  lastNumber: number,
 ): number => {
   if (lastNumber === 0) return 0
 

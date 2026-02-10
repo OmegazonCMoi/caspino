@@ -6,8 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon -r ts-node/register src/index.ts",
-    "dev-client": "nodemon -r ts-node/register src/client.ts"
+    "dev-roulette": "nodemon --exec node --loader ts-node/esm src/games/roulette/index.ts",
+    "dev-roulette-client": "nodemon --exec node --loader ts-node/esm src/games/roulette/client.ts"
   },
   "keywords": [],
   "author": "",
