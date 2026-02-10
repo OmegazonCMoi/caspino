@@ -7,7 +7,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev-roulette": "nodemon --exec node --loader ts-node/esm src/games/roulette/index.ts",
-    "dev-roulette-client": "nodemon --exec node --loader ts-node/esm src/games/roulette/client.ts"
+    "dev-roulette-client": "nodemon --exec node --loader ts-node/esm src/games/roulette/client.ts",
+    "dev-slots": "nodemon --exec node --loader ts-node/esm src/games/slots/index.ts",
+    "dev-slots-client": "nodemon --exec node --loader ts-node/esm src/games/slots/client.ts"
   },
   "keywords": [],
   "author": "",
