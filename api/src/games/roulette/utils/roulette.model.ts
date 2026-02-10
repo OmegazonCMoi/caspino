@@ -27,3 +27,9 @@ export interface ThreeTimesBet {
 }
 
 export type Bet = NumberBet | TwoTimesBet | ThreeTimesBet
+
+export enum RoulettePhase {
+  BETTING = 'BETTING',
+  SPINNING = 'SPINNING',
+  RESULT = 'RESULT',
+}
