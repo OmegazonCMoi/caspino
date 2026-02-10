@@ -1,7 +1,7 @@
 import WebSocket, { WebSocketServer } from "ws"
 import { SlotsGame } from "./slotsGame.ts"
 
-const wss = new WebSocketServer({ port: 5700 })
+const wss = new WebSocketServer({ host: "0.0.0.0", port: 5700 })
 
 const message = (ws: WebSocket, msg: any) => {
   ws.send(JSON.stringify(msg))

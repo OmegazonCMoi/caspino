@@ -17,7 +17,6 @@ export class SlotsGame {
   spin(bet: number, ws: WebSocket) {
     const slotResult = this.generateResult()
     const gains = calculateGains(bet, slotResult, this.symbols)
-
     this.message(ws, { type: "BET_RESULT", payload: { slotResult, gains } })
   }
 
