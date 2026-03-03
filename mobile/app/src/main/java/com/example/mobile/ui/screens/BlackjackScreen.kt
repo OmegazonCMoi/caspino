@@ -77,8 +77,12 @@ fun BlackjackScreen(
         ) {
             context.startActivity(Intent(context, MainActivity::class.java))
         },
-        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) { },
-        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) { },
+        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) {
+            context.startActivity(Intent(context, com.example.mobile.StatsActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) {
+            context.startActivity(Intent(context, com.example.mobile.AccountActivity::class.java))
+        },
         BottomBarItem(AppIcons.Cart, AppIcons.CartFilled) {
             context.startActivity(Intent(context, com.example.mobile.ShopActivity::class.java))
         }

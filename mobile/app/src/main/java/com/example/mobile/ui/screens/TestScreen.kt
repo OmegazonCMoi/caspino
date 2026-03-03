@@ -48,7 +48,7 @@ fun TestScreen() {
         BottomBarItem(
             icon = AppIcons.Search,
             selectedIcon = AppIcons.SearchFilled,
-            onClick = { selectedTab = 1 }
+            onClick = { selectedTab = 1 } // TestScreen — navigation stats non connectée ici
         ),
         BottomBarItem(
             icon = AppIcons.Profile,
