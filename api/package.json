@@ -10,6 +10,8 @@
     "dev-roulette-client": "nodemon --exec node --loader ts-node/esm src/games/roulette/client.ts",
     "dev-slots": "nodemon --exec node --loader ts-node/esm src/games/slots/index.ts",
     "dev-slots-client": "nodemon --exec node --loader ts-node/esm src/games/slots/client.ts",
+    "dev-blackjack": "nodemon --exec node --loader ts-node/esm src/games/blackjack/index.ts",
+    "dev-blackjack-client": "nodemon --exec node --loader ts-node/esm src/games/blackjack/client.ts",
     "dev": "nodemon --exec node --loader ts-node/esm src/index.ts"
   },
   "keywords": [],
