@@ -65,8 +65,12 @@ fun HomeScreen() {
 
     val bottomBarItems = listOf(
         BottomBarItem(AppIcons.Home, AppIcons.HomeFilled) { selectedTab = 0 },
-        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) { selectedTab = 1 },
-        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) { selectedTab = 2 },
+        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) {
+            context.startActivity(Intent(context, com.example.mobile.StatsActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) {
+            context.startActivity(Intent(context, com.example.mobile.AccountActivity::class.java))
+        },
         BottomBarItem(AppIcons.Cart, AppIcons.CartFilled) {
             context.startActivity(android.content.Intent(context, com.example.mobile.ShopActivity::class.java))
         }
@@ -135,7 +139,7 @@ fun AllGamesCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(120.dp)
+            .height(140.dp)
             .clip(RoundedCornerShape(24.dp))
             .background(
                 Brush.horizontalGradient(
@@ -148,30 +152,33 @@ fun AllGamesCard(
             .clickable { onClick() }
             .padding(20.dp)
     ) {
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Bottom
         ) {
-
-            Image(
-                painter = painterResource(id = R.drawable.slot_machine),
-                contentDescription = null,
-                modifier = Modifier.size(48.dp)
-            )
-
-            Spacer(Modifier.width(16.dp))
-
-            Column {
-                Text(
-                    "All Games",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.dice),
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp)
                 )
-                Text(
-                    "Play against real opponents",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
+
+                Spacer(Modifier.width(16.dp))
+
+                Column {
+                    Text(
+                        "Random Game",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Jump into a random game",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }

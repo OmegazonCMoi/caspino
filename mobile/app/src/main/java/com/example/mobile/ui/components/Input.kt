@@ -37,6 +37,7 @@ fun AppTextField(
     isError: Boolean = false,
     errorMessage: String? = null,
     singleLine: Boolean = true,
+    transparentContainer: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default
 ) {
@@ -90,9 +91,13 @@ fun AppTextField(
                 fontSize = 16.sp
             ),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = DarkSurfaceVariant,
-                unfocusedContainerColor = DarkSurface,
-                disabledContainerColor = DarkSurface.copy(alpha = 0.5f),
+                focusedContainerColor = if (transparentContainer) Color.Transparent else DarkSurfaceVariant,
+                unfocusedContainerColor = if (transparentContainer) Color.Transparent else DarkSurface,
+                disabledContainerColor = if (transparentContainer) {
+                    Color.Transparent
+                } else {
+                    DarkSurface.copy(alpha = 0.5f)
+                },
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 disabledIndicatorColor = Color.Transparent,

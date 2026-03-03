@@ -113,12 +113,60 @@ object AppIcons {
                     strokeLineMiter = 1f,
                     pathFillType = PathFillType.NonZero
                 ) {
-                    moveTo(21.0f, 21.0f)
-                    lineToRelative(-4.34f, -4.34f)
-                    moveToRelative(0.0f, 0.0f)
-                    arcToRelative(8.0f, 8.0f, 0.0f, true, true, -11.32f, -11.32f)
-                    arcToRelative(8.0f, 8.0f, 0.0f, true, true, 11.32f, 11.32f)
-                    close()
+                    moveTo(3.0f, 3.0f)
+                    verticalLineToRelative(16.0f)
+                    arcToRelative(
+                        2.0f,
+                        2.0f,
+                        0.0f,
+                        false,
+                        false,
+                        2.0f,
+                        2.0f
+                    )
+                    horizontalLineToRelative(16.0f)
+                }
+                path(
+                    fill = null,
+                    fillAlpha = 1f,
+                    stroke = SolidColor(Color.Black),
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 2.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(18.0f, 17.0f)
+                    verticalLineTo(9.0f)
+                }
+                path(
+                    fill = null,
+                    fillAlpha = 1f,
+                    stroke = SolidColor(Color.Black),
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 2.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(13.0f, 17.0f)
+                    verticalLineTo(5.0f)
+                }
+                path(
+                    fill = null,
+                    fillAlpha = 1f,
+                    stroke = SolidColor(Color.Black),
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 2.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(8.0f, 17.0f)
+                    verticalLineToRelative(-3.0f)
                 }
             }.build()
             return _search!!
@@ -148,12 +196,60 @@ object AppIcons {
                     strokeLineMiter = 1f,
                     pathFillType = PathFillType.NonZero
                 ) {
-                    moveTo(21.0f, 21.0f)
-                    lineToRelative(-4.34f, -4.34f)
-                    moveToRelative(0.0f, 0.0f)
-                    arcToRelative(8.0f, 8.0f, 0.0f, true, true, -11.32f, -11.32f)
-                    arcToRelative(8.0f, 8.0f, 0.0f, true, true, 11.32f, 11.32f)
-                    close()
+                    moveTo(3.0f, 3.0f)
+                    verticalLineToRelative(16.0f)
+                    arcToRelative(
+                        2.0f,
+                        2.0f,
+                        0.0f,
+                        false,
+                        false,
+                        2.0f,
+                        2.0f
+                    )
+                    horizontalLineToRelative(16.0f)
+                }
+                path(
+                    fill = SolidColor(Color.White),
+                    fillAlpha = 1f,
+                    stroke = null,
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 1.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(18.0f, 17.0f)
+                    verticalLineTo(9.0f)
+                }
+                path(
+                    fill = SolidColor(Color.White),
+                    fillAlpha = 1f,
+                    stroke = null,
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 1.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(13.0f, 17.0f)
+                    verticalLineTo(5.0f)
+                }
+                path(
+                    fill = SolidColor(Color.White),
+                    fillAlpha = 1f,
+                    stroke = null,
+                    strokeAlpha = 1f,
+                    strokeLineWidth = 1.0f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                    strokeLineMiter = 1f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(8.0f, 17.0f)
+                    verticalLineToRelative(-3.0f)
                 }
             }.build()
             return _searchFilled!!
