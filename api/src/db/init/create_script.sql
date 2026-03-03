@@ -82,9 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_bets_party_id ON bets(party_id);
 CREATE INDEX IF NOT EXISTS idx_bets_user_id_created_at ON bets(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bets_kind ON bets(kind);
 
--- =========================
 -- Roulette payload checks
--- =========================
 ALTER TABLE bets ADD CONSTRAINT roulette_color_payload CHECK (
   kind <> 'roulette_color'
   OR (selection ? 'color' AND (selection->>'color') IN ('red','black'))
@@ -95,7 +93,7 @@ ALTER TABLE bets ADD CONSTRAINT roulette_number_payload CHECK (
   OR (
     selection ? 'number'
     AND (selection->>'number') ~ '^[0-9]+$'
-    AND ((selection->>'number')::int BETWEEN 0 AND 36)
+    AND (selection->>'number')::int BETWEEN 0 AND 36
   )
 );
 
@@ -108,7 +106,7 @@ ALTER TABLE bets ADD CONSTRAINT roulette_dozen_payload CHECK (
   kind <> 'roulette_dozen'
   OR (
     selection ? 'dozen'
-    AND ((selection->>'dozen')::int BETWEEN 1 AND 3)
+    AND (selection->>'dozen')::int BETWEEN 1 AND 3
   )
 );
 
@@ -116,7 +114,7 @@ ALTER TABLE bets ADD CONSTRAINT roulette_column_payload CHECK (
   kind <> 'roulette_column'
   OR (
     selection ? 'column'
-    AND ((selection->>'column')::int BETWEEN 1 AND 3)
+    AND (selection->>'column')::int BETWEEN 1 AND 3
   )
 );
 
@@ -165,20 +163,14 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   amount NUMERIC(12,2) NOT NULL,
   reason TEXT NOT NULL,
   reference_id UUID,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  -- jour utilisé uniquement pour le bonus journalier
-  bonus_day DATE DEFAULT CURRENT_DATE
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_wallet_user_created_at
 ON wallet_transactions(user_id, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_wallet_reason
-ON wallet_transactions(reason);
-
 CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_bonus_once_per_day
-ON wallet_transactions (user_id, bonus_day)
+ON wallet_transactions (user_id, date_trunc('day', created_at))
 WHERE reason = 'daily_bonus';
 
 -- =========================
@@ -201,8 +193,6 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_apply_wallet_transaction ON wallet_transactions;
-
 CREATE TRIGGER trg_apply_wallet_transaction
 AFTER INSERT ON wallet_transactions
 FOR EACH ROW
@@ -218,12 +208,9 @@ AS $$
 BEGIN
   INSERT INTO wallet_transactions (user_id, amount, reason, reference_id)
   VALUES (NEW.user_id, -NEW.amount, 'bet_debit', NEW.id);
-
   RETURN NEW;
 END;
 $$;
-
-DROP TRIGGER IF EXISTS trg_bet_wallet_debit ON bets;
 
 CREATE TRIGGER trg_bet_wallet_debit
 AFTER INSERT ON bets
@@ -250,19 +237,16 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_slot_wallet_credit ON slot_results;
 CREATE TRIGGER trg_slot_wallet_credit
 AFTER INSERT ON slot_results
 FOR EACH ROW
 EXECUTE FUNCTION create_wallet_credit_for_result();
 
-DROP TRIGGER IF EXISTS trg_roulette_wallet_credit ON roulette_results;
 CREATE TRIGGER trg_roulette_wallet_credit
 AFTER INSERT ON roulette_results
 FOR EACH ROW
 EXECUTE FUNCTION create_wallet_credit_for_result();
 
-DROP TRIGGER IF EXISTS trg_blackjack_wallet_credit ON blackjack_results;
 CREATE TRIGGER trg_blackjack_wallet_credit
 AFTER INSERT ON blackjack_results
 FOR EACH ROW
