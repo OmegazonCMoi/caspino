@@ -124,6 +124,10 @@ app.get("/me", authenticateJWT, (req: Request, res: Response) => {
   res.status(200).json({ user: (req as any).user })
 })
 
+app.get("/health", (req: Request, res: Response) => {
+  res.status(200).json({ status: "ok", service: "api-caspino" })
+})
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`HTTP server running on http://0.0.0.0:${PORT}`)
 })
