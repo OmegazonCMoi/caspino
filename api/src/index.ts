@@ -75,7 +75,7 @@ app.post("/signup", async (req: Request, res: Response) => {
     .values({
       id: crypto.randomUUID(),
       username,
-      password: hashedPassword,
+      password_hash: hashedPassword,
       email,
       is_active: true,
       last_login: new Date(),
@@ -94,9 +94,9 @@ app.post("/signup", async (req: Request, res: Response) => {
 app.post("/login", async (req: Request, res: Response) => {
   const { username, password } = req.body
 
-  const { password: hashedPasswordForUser } = (await db
+  const { password_hash: hashedPasswordForUser } = (await db
     .selectFrom("users")
-    .select("password")
+    .select("password_hash")
     .where("username", "=", username)
     .executeTakeFirst()) ?? { password: undefined }
 
