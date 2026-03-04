@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken"
 import { sql } from "kysely"
 import { db } from "./db/index.ts"
 import "dotenv/config"
+import "./games/roulette/index.ts"
 
 const SALT_ROUNDS = 12
 

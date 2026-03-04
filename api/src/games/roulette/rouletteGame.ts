@@ -6,6 +6,7 @@ export class RouletteGame {
   private phase: RoulettePhase = RoulettePhase.BETTING
   private phaseEndsAt = 0
   private bets: Map<WebSocket, Bet[]> = new Map()
+  private lastResult: number | null = null
 
   constructor(
     private broadcast: (msg: any) => void,
@@ -54,8 +55,17 @@ export class RouletteGame {
     this.bets.set(ws, bets)
   }
 
+  getSnapshot() {
+    return {
+      phase: this.phase,
+      endsAt: this.phaseEndsAt,
+      lastResult: this.lastResult,
+    }
+  }
+
   private async resolveGame() {
     const roulettteRandomResult = Math.floor(Math.random() * 37)
+    this.lastResult = roulettteRandomResult
 
     await Promise.all(
       Array.from(this.bets.entries()).map(async ([ws, bets]) => {

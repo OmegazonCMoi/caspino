@@ -19,9 +19,25 @@ game.start()
 
 wss.on("connection", (ws: WebSocket) => {
   clients.add(ws)
+  ws.send(
+    JSON.stringify({
+      type: "SYNC_STATE",
+      payload: game.getSnapshot(),
+    }),
+  )
 
   ws.on("message", (raw) => {
     const msg = JSON.parse(raw.toString())
+
+    if (msg.type === "SYNC_REQUEST") {
+      ws.send(
+        JSON.stringify({
+          type: "SYNC_STATE",
+          payload: game.getSnapshot(),
+        }),
+      )
+      return
+    }
 
     if (msg.type === "PLACE_BET") {
       try {

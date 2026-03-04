@@ -23,10 +23,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +64,9 @@ import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
 import kotlin.time.Duration.Companion.seconds
 import kotlin.random.Random
+import com.example.mobile.network.RouletteApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun RouletteScreen(
@@ -74,13 +79,19 @@ fun RouletteScreen(
     var balance by BalanceState.balance
     var bet by remember { mutableStateOf(10) }
     var winningNumber by remember { mutableStateOf<Int?>(null) }
-    var forcedNumberText by remember { mutableStateOf("") }
     var selectedNumbers by remember { mutableStateOf(setOf<Int>()) }
     var selectedGroups by remember { mutableStateOf(setOf<String>()) }
-    var isBettingPhase by remember { mutableStateOf(true) }
+    var currentPhase by remember { mutableStateOf("CONNECTING") }
+    var phaseEndsAt by remember { mutableStateOf(0L) }
+    var secondsRemaining by remember { mutableStateOf(0) }
     var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
+    var betError by remember { mutableStateOf<String?>(null) }
+    var isPlacingBet by remember { mutableStateOf(false) }
+    var hasAnimatedCurrentSpin by remember { mutableStateOf(false) }
+    var autoBetPlacedForPhase by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val bottomBarItems = listOf(
         BottomBarItem(
@@ -100,22 +111,126 @@ fun RouletteScreen(
         }
     )
 
-    fun requestSpin(forcedNumber: Int? = null) {
-        // Ici tu pourras plus tard brancher la logique de gains/pertes avec balance/bet
-        val targetNumber = forcedNumber ?: Random.nextInt(0, 37)
+    fun triggerSpin(number: Int) {
         spinCommandId++
         currentSpinCommand = SpinCommand(
             id = spinCommandId,
-            number = targetNumber
+            number = number
         )
     }
 
-    // Quand on passe en phase "roue", on lance automatiquement un spin
-    // (retour à la phase de mise géré manuellement par l'utilisateur).
-    LaunchedEffect(isBettingPhase) {
-        if (!isBettingPhase) {
-            val forced = forcedNumberText.toIntOrNull()?.takeIf { it in 0..36 }
-            requestSpin(forced)
+    fun placeCurrentBet() {
+        if (isPlacingBet || autoBetPlacedForPhase) return
+        if (selectedNumbers.isEmpty() && selectedGroups.isEmpty()) return
+
+        val totalStake = bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1)
+        if (balance < totalStake) {
+            betError = "Solde insuffisant pour cette manche"
+            autoBetPlacedForPhase = true
+            return
+        }
+
+        autoBetPlacedForPhase = true
+        isPlacingBet = true
+        betError = null
+        BalanceState.balance.intValue -= totalStake
+
+        scope.launch {
+            val result = RouletteApi.placeBet(
+                selectedNumbers = selectedNumbers,
+                selectedGroups = selectedGroups,
+                betPerSelection = bet
+            )
+            isPlacingBet = false
+
+            result.onFailure { e ->
+                // Si l'envoi échoue, on rembourse.
+                BalanceState.balance.intValue += totalStake
+                betError = e.message ?: "Erreur réseau"
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        RouletteApi.setListener { type, payload ->
+            scope.launch {
+                when (type) {
+                    "SYNC_STATE", "PHASE_UPDATE" -> {
+                        val phase = payload.optString("phase", currentPhase)
+                        currentPhase = phase
+                        phaseEndsAt = payload.optLong("endsAt", phaseEndsAt)
+                        if (phase == "BETTING") {
+                            isPlacingBet = false
+                            hasAnimatedCurrentSpin = false
+                            autoBetPlacedForPhase = false
+                            winningNumber = null
+                        } else if (phase == "SPINNING" && !hasAnimatedCurrentSpin) {
+                            // Si on arrive en plein spin, on montre quand même une roue qui tourne.
+                            triggerSpin(Random.nextInt(0, 37))
+                            hasAnimatedCurrentSpin = true
+                        }
+                    }
+                    "BET_RESULT" -> {
+                        val gains = payload.optInt("gains", 0)
+                        val number = payload.optInt("roulettteRandomResult", -1)
+                        if (number in 0..36) {
+                            winningNumber = number
+                            triggerSpin(number)
+                            hasAnimatedCurrentSpin = true
+                        }
+                        if (gains > 0) {
+                            BalanceState.balance.intValue += gains
+                            val hasWinningNumber = winningNumber != null && selectedNumbers.contains(winningNumber!!)
+                            val hasWinningGroup = winningNumber != null && selectedGroups.any { isWinningGroup(it, winningNumber!!) }
+                            if (hasWinningNumber || hasWinningGroup) {
+                                val durationSec = 3.0
+                                confettiParties = listOf(
+                                    Party(
+                                        angle = -45,
+                                        spread = 45,
+                                        position = Position.Relative(0.0, 0.26),
+                                        emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                                        fadeOutEnabled = true
+                                    ),
+                                    Party(
+                                        angle = -135,
+                                        spread = 45,
+                                        position = Position.Relative(1.0, 0.26),
+                                        emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                                        fadeOutEnabled = true
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    "ERROR" -> {
+                        val message = payload.optString("message", "Erreur roulette")
+                        betError = message
+                        isPlacingBet = false
+                    }
+                }
+            }
+        }
+        RouletteApi.connect()
+    }
+
+    LaunchedEffect(currentPhase, phaseEndsAt, selectedNumbers, selectedGroups, bet, balance) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            val remainingMs = (phaseEndsAt - now).coerceAtLeast(0L)
+            secondsRemaining = ((remainingMs + 999L) / 1000L).toInt()
+
+            if (currentPhase == "BETTING" && remainingMs <= 900L && !autoBetPlacedForPhase) {
+                placeCurrentBet()
+            }
+            delay(200L)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            RouletteApi.setListener(null)
+            RouletteApi.disconnect()
         }
     }
 
@@ -159,10 +274,23 @@ fun RouletteScreen(
                         .align(Alignment.Start)
                 )
 
+                Text(
+                    text = "Phase: ${currentPhase.replace('_', ' ')}",
+                    fontSize = 12.sp,
+                    color = DarkTextSecondary,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Text(
+                    text = "Timer: ${secondsRemaining}s",
+                    fontSize = 12.sp,
+                    color = DarkTextSecondary,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+
                 Spacer(modifier = Modifier.height(2.dp))
 
                 // === Étape 1 : mise (plein écran) ===
-                if (isBettingPhase) {
+                if (currentPhase == "BETTING") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -318,22 +446,11 @@ fun RouletteScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Bouton pour passer à l'étape roue
-                        AppButton(
-                            text = "Valider les mises",
-                            onClick = {
-                                if (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) {
-                                    val totalStake = bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1)
-                                    if (balance >= totalStake) {
-                                        BalanceState.balance.intValue -= totalStake
-                                        isBettingPhase = false
-                                    }
-                                }
-                            },
-                            variant = ButtonVariant.Primary,
-                            size = ButtonSize.Medium,
-                            enabled = (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) && balance >= bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1),
-                            fontWeight = FontWeight.SemiBold,
+                        Text(
+                            text = if (isPlacingBet) "Mise en cours d'envoi..." else "La mise est envoyée automatiquement à la fin du timer",
+                            fontSize = 12.sp,
+                            color = DarkTextSecondary,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -360,42 +477,9 @@ fun RouletteScreen(
                                     currentSpinCommand = null
                                 },
                                 onNumberSelected = { number ->
+                                    // Ici on se contente de refléter le numéro visuel.
+                                    // Les gains sont déjà traités lors de la réponse serveur.
                                     winningNumber = number
-
-                                    // Calcul des gains et crédit des pinos (appelé quand la roue a fini de tourner)
-                                    val payout = calculateRoulettePayout(
-                                        selectedNumbers = selectedNumbers,
-                                        selectedGroups = selectedGroups,
-                                        winningNumber = number,
-                                        betPerSelection = bet
-                                    )
-                                    if (payout > 0) {
-                                        BalanceState.balance.intValue += payout
-                                    }
-
-                                    // Déclenche les confettis uniquement si au moins une mise est gagnante
-                                    val hasWinningNumber = selectedNumbers.contains(number)
-                                    val hasWinningGroup = selectedGroups.any { isWinningGroup(it, number) }
-
-                                    if (hasWinningNumber || hasWinningGroup) {
-                                        val durationSec = 3.0
-                                        confettiParties = listOf(
-                                            Party(
-                                                angle = -45,
-                                                spread = 45,
-                                                position = Position.Relative(0.0, 0.26),
-                                                emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                                                fadeOutEnabled = true
-                                            ),
-                                            Party(
-                                                angle = -135,
-                                                spread = 45,
-                                                position = Position.Relative(1.0, 0.26),
-                                                emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                                                fadeOutEnabled = true
-                                            )
-                                        )
-                                    }
                                 }
                             )
                         }
@@ -492,18 +576,31 @@ fun RouletteScreen(
 
                         // Bouton pour revenir manuellement à l'étape de mise
                         AppButton(
-                            text = "Nouvelle mise",
+                            text = if (currentPhase == "BETTING") "Nouvelle mise" else "Attends la prochaine phase",
                             onClick = {
-                                isBettingPhase = true
-                                // on garde les sélections et les mises
+                                if (currentPhase == "BETTING") {
+                                    winningNumber = null
+                                    confettiParties = emptyList()
+                                    // on garde les sélections et les mises
+                                }
                             },
                             variant = ButtonVariant.Primary,
                             size = ButtonSize.Medium,
-                            enabled = true,
+                            enabled = currentPhase == "BETTING",
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                }
+                if (betError != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = betError ?: "",
+                        fontSize = 12.sp,
+                        color = Color(0xFFEF4444),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
                 }
             }
@@ -526,25 +623,6 @@ private fun isRouletteRed(number: Int): Boolean {
         19, 21, 23, 25, 27,
         30, 32, 34, 36
     )
-}
-
-// Calcule le gain total roulette (mise rendue + gains) pour le numéro gagnant
-private fun calculateRoulettePayout(
-    selectedNumbers: Set<Int>,
-    selectedGroups: Set<String>,
-    winningNumber: Int,
-    betPerSelection: Int
-): Int {
-    var payout = 0
-    if (winningNumber in selectedNumbers) {
-        payout += 36 * betPerSelection // plein : 35:1 + mise
-    }
-    selectedGroups.forEach { groupId ->
-        if (isWinningGroup(groupId, winningNumber)) {
-            payout += if (groupId.startsWith("D_")) 3 * betPerSelection else 2 * betPerSelection // douzaine 2:1, autres 1:1
-        }
-    }
-    return payout
 }
 
 // Vérifie si un groupe de mise est gagnant pour un numéro donné

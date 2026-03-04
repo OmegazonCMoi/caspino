@@ -55,7 +55,7 @@ fun RouletteWheel(
     val itemWidthPx = with(density) { itemWidthDp.toPx() }
     val screenWidthPx = with(density) { screenWidthDp.toPx() }
 
-    val repeats = 300
+    val repeats = 200
     val totalItems = repeats * numbers.size
     val middleIndex = totalItems / 2
 
@@ -77,7 +77,7 @@ fun RouletteWheel(
     fun triggerSpin(targetNumber: Int) {
         if (isSpinning) return
         val numberIndex = numbers.indexOf(targetNumber).takeIf { it >= 0 } ?: return
-        val spinRounds = 15
+        val spinRounds = 8
         val targetIndex = middleIndex + (spinRounds * numbers.size) + numberIndex
         val targetCenterPx = targetIndex * itemWidthPx + (itemWidthPx / 2f)
         val targetScrollPx = targetCenterPx - (screenWidthPx / 2f)
@@ -85,13 +85,13 @@ fun RouletteWheel(
         isSpinning = true
         scope.launch {
             scroller.snapTo(0f)
-            scroller.animateTo(
-                targetValue = targetScrollPx,
-                animationSpec = tween(
-                    durationMillis = 15000,
-                    easing = CubicBezierEasing(0.08f, 0.78f, 0.22f, 1f)
+                scroller.animateTo(
+                    targetValue = targetScrollPx,
+                    animationSpec = tween(
+                        durationMillis = 3000,
+                        easing = CubicBezierEasing(0.08f, 0.78f, 0.22f, 1f)
+                    )
                 )
-            )
             isSpinning = false
             // Signale le numéro gagnant une fois l'animation terminée
             onNumberSelected(targetNumber)
