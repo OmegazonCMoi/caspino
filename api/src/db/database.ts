@@ -1,8 +1,21 @@
+export type GameType = 'slot' | 'roulette' | 'blackjack'
+
+export type BetKind =
+  | 'roulette_color'
+  | 'roulette_number'
+  | 'roulette_parity'
+  | 'roulette_dozen'
+  | 'roulette_column'
+  | 'roulette_low_high'
+  | 'blackjack_win'
+  | 'slot_spin'
+
 export interface UserTable {
   id: string
   username: string
   password_hash: string
   email: string
+  password: string
   is_active: boolean
   created_at: Date
   last_login: Date | null
@@ -46,10 +59,10 @@ export interface SlotResultsTable {
   created_at: Date
 }
 
-export interface RouletteResultsTable {
+export interface RouletteResultTable {
   party_id: string
   number: number
-  color: string
+  color: 'red' | 'black' | 'green'
   gain: number
   created_at: Date
 }
@@ -68,7 +81,6 @@ export interface WalletTransactionsTable {
   reason: string
   reference_id: string | null
   created_at: Date
-  bonus_day: Date | null
 }
 
 export interface Database {

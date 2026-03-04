@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(50) NOT NULL UNIQUE,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
+  password TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_login TIMESTAMPTZ,
@@ -59,7 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_parties_game_type ON parties(game_type);
 -- =========================
 CREATE TABLE IF NOT EXISTS bets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  party_id UUID NOT NULL,
+  game_id UUID NOT NULL,
   user_id UUID NOT NULL,
   amount NUMERIC(12,2) NOT NULL,
   kind bet_kind NOT NULL,
@@ -69,16 +69,16 @@ CREATE TABLE IF NOT EXISTS bets (
   CONSTRAINT bets_amount_positive CHECK (amount > 0),
   CONSTRAINT bets_selection_object CHECK (jsonb_typeof(selection) = 'object'),
 
-  CONSTRAINT bets_party_fk FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE,
+  CONSTRAINT bets_game_fk FOREIGN KEY (game_id) REFERENCES parties(id) ON DELETE CASCADE,
   CONSTRAINT bets_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 
-  CONSTRAINT bets_user_matches_party
-    FOREIGN KEY (party_id, user_id)
+  CONSTRAINT bets_user_matches_game
+    FOREIGN KEY (game_id, user_id)
     REFERENCES parties(id, user_id)
     ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_bets_party_id ON bets(party_id);
+CREATE INDEX IF NOT EXISTS idx_bets_game_id ON bets(game_id);
 CREATE INDEX IF NOT EXISTS idx_bets_user_id_created_at ON bets(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bets_kind ON bets(kind);
 
@@ -129,7 +129,7 @@ ALTER TABLE bets ADD CONSTRAINT roulette_low_high_payload CHECK (
 -- RESULTS
 -- =========================
 CREATE TABLE IF NOT EXISTS slot_results (
-  party_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
+  game_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
   result CHAR(3) NOT NULL,
   gain NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS slot_results (
 );
 
 CREATE TABLE IF NOT EXISTS roulette_results (
-  party_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
+  game_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
   number SMALLINT NOT NULL,
   color TEXT NOT NULL,
   gain NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS roulette_results (
 );
 
 CREATE TABLE IF NOT EXISTS blackjack_results (
-  party_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
+  game_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
   won BOOLEAN NOT NULL,
   gain NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -165,10 +165,7 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   amount NUMERIC(12,2) NOT NULL,
   reason TEXT NOT NULL,
   reference_id UUID,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  -- jour utilisé uniquement pour le bonus journalier
-  bonus_day DATE DEFAULT CURRENT_DATE
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_wallet_user_created_at
@@ -176,10 +173,6 @@ ON wallet_transactions(user_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_wallet_reason
 ON wallet_transactions(reason);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_bonus_once_per_day
-ON wallet_transactions (user_id, bonus_day)
-WHERE reason = 'daily_bonus';
 
 -- =========================
 -- WALLET BALANCE TRIGGER
@@ -239,11 +232,11 @@ LANGUAGE plpgsql
 AS $$
 DECLARE u_id UUID;
 BEGIN
-  SELECT user_id INTO u_id FROM parties WHERE id = NEW.party_id;
+  SELECT user_id INTO u_id FROM parties WHERE id = NEW.game_id;
 
   IF NEW.gain > 0 THEN
     INSERT INTO wallet_transactions (user_id, amount, reason, reference_id)
-    VALUES (u_id, NEW.gain, 'game_win', NEW.party_id);
+    VALUES (u_id, NEW.gain, 'game_win', NEW.game_id);
   END IF;
 
   RETURN NEW;
