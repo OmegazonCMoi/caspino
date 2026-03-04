@@ -29,7 +29,7 @@ export const getUserByUsernameOrEmail = (username: string, email: string) => {
 }
 
 export const createUser = (
-  id: string,
+  userId: string,
   username: string,
   hashedPassword: string,
   email: string,
@@ -37,7 +37,7 @@ export const createUser = (
   return db
     .insertInto("users")
     .values({
-      id,
+      id: userId,
       username,
       password: hashedPassword,
       email,
@@ -51,11 +51,11 @@ export const createUser = (
 
 
 export const createParty = (gameType: GameType) => {
-  const id = crypto.randomUUID()
+  const partyId = crypto.randomUUID()
   return db
     .insertInto("parties")
     .values({
-      id,
+      id: partyId,
       game_type: gameType,
       created_at: new Date(),
       finished_at: null,

@@ -73,11 +73,11 @@ app.post("/signup", async (req: Request, res: Response) => {
   }
 
   const hashedPassword = await hashPassword(password)
-  const id = crypto.randomUUID()
+  const userId = crypto.randomUUID()
 
-  await createUser(id, username, hashedPassword, email)
+  await createUser(userId, username, hashedPassword, email)
 
-  const token = jwt.sign({ username, userId: id }, JWT_SECRET, {
+  const token = jwt.sign({ username, userId }, JWT_SECRET, {
     expiresIn: "7d",
   })
 

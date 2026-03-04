@@ -25,7 +25,7 @@ export class BlackjackGame {
 
   private initDeck() {
     this.deck = []
-    for (let d = 0; d < DECK_COUNT; d++) {
+    for (let deckIndex = 0; deckIndex < DECK_COUNT; deckIndex++) {
       for (const suit of SUITS) {
         for (const rank of RANKS) {
           this.deck.push({ suit, rank })
@@ -36,13 +36,13 @@ export class BlackjackGame {
   }
 
   private shuffleDeck() {
-    for (let i = this.deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      const a = this.deck[i]
-      const b = this.deck[j]
-      if (a && b) {
-        this.deck[i] = b
-        this.deck[j] = a
+    for (let cardIndex = this.deck.length - 1; cardIndex > 0; cardIndex--) {
+      const swapIndex = Math.floor(Math.random() * (cardIndex + 1))
+      const currentCard = this.deck[cardIndex]
+      const swapCard = this.deck[swapIndex]
+      if (currentCard && swapCard) {
+        this.deck[cardIndex] = swapCard
+        this.deck[swapIndex] = currentCard
       }
     }
   }
@@ -330,12 +330,12 @@ export class BlackjackGame {
     this.message(ws, {
       type: "GAME_STATE",
       payload: {
-        hands: session.hands.map((h) => ({
-          cards: h.cards,
-          bet: h.bet,
-          status: h.status,
-          isDoubled: h.isDoubled,
-          value: BlackjackGame.handValue(h.cards),
+        hands: session.hands.map((hand) => ({
+          cards: hand.cards,
+          bet: hand.bet,
+          status: hand.status,
+          isDoubled: hand.isDoubled,
+          value: BlackjackGame.handValue(hand.cards),
         })),
         activeHandIndex: session.activeHandIndex,
         dealerUpCard,

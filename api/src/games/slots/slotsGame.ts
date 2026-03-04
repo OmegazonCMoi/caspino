@@ -40,7 +40,7 @@ export class SlotsGame {
   simulate(spins: number = 1_000_000, bet: number = 1): number {
     let totalWin = 0
 
-    for (let i = 0; i < spins; i++) {
+    for (let spinIndex = 0; spinIndex < spins; spinIndex++) {
       const result = this.generateResult()
       totalWin += calculateGains(bet, result, this.symbols)
     }
