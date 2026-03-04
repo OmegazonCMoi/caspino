@@ -3,6 +3,8 @@ package com.example.mobile.ui.screens
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.mobile.network.ApiClient
+import com.example.mobile.network.AuthApi
 import java.time.LocalDate
 
 object AccountState {
@@ -18,36 +20,53 @@ object AccountState {
     var memberSince by mutableStateOf<LocalDate?>(null)
         private set
 
-    fun login(inputEmail: String, inputPassword: String): Boolean {
-        if (inputEmail.isBlank() || inputPassword.length < 4) return false
-        if (!inputEmail.contains("@")) return false
+    var isLoading by mutableStateOf(false)
+        private set
 
-        email = inputEmail.trim()
-        username = inputEmail.substringBefore("@").ifBlank { "Joueur" }
-        if (memberSince == null) memberSince = LocalDate.now()
-        isLoggedIn = true
-        return true
+    suspend fun login(inputUsername: String, inputPassword: String): Result<Unit> {
+        isLoading = true
+        val result = AuthApi.login(inputUsername, inputPassword)
+        isLoading = false
+
+        return result.map { auth ->
+            username = auth.username
+            email = ""
+            if (memberSince == null) memberSince = LocalDate.now()
+            isLoggedIn = true
+        }
     }
 
-    fun register(
+    suspend fun register(
         inputUsername: String,
         inputEmail: String,
         inputPassword: String,
         inputConfirmPassword: String
-    ): Boolean {
-        if (inputUsername.length < 3) return false
-        if (!inputEmail.contains("@")) return false
-        if (inputPassword.length < 6) return false
-        if (inputPassword != inputConfirmPassword) return false
+    ): Result<Unit> {
+        if (inputUsername.length < 3)
+            return Result.failure(IllegalStateException("Le pseudo doit faire 3 caractères minimum."))
+        if (!inputEmail.contains("@"))
+            return Result.failure(IllegalStateException("Email invalide."))
+        if (inputPassword.length < 6)
+            return Result.failure(IllegalStateException("Le mot de passe doit faire 6 caractères minimum."))
+        if (inputPassword != inputConfirmPassword)
+            return Result.failure(IllegalStateException("Les mots de passe ne correspondent pas."))
 
-        username = inputUsername.trim()
-        email = inputEmail.trim()
-        memberSince = LocalDate.now()
-        isLoggedIn = true
-        return true
+        isLoading = true
+        val result = AuthApi.signup(inputUsername, inputEmail, inputPassword)
+        isLoading = false
+
+        return result.map { auth ->
+            username = auth.username
+            email = inputEmail
+            memberSince = LocalDate.now()
+            isLoggedIn = true
+        }
     }
 
     fun logout() {
         isLoggedIn = false
+        username = ""
+        email = ""
+        ApiClient.token = null
     }
 }

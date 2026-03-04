@@ -2,11 +2,9 @@ package com.example.mobile.network
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
 data class GameStatDto(
     val gameType: String,
@@ -43,23 +41,16 @@ data class StatsPlatformResponse(
 )
 
 object StatsApi {
-    private const val BASE_URL = "http://10.109.110.27:5500"
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .writeTimeout(5, TimeUnit.SECONDS)
-        .build()
 
     suspend fun fetchPlatformStats(): Result<StatsPlatformResponse> {
         return withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
-                    .url("$BASE_URL/stats/platform")
+                    .url("${ApiClient.BASE_URL}/stats/platform")
                     .get()
                     .build()
 
-                client.newCall(request).execute().use { response ->
+                ApiClient.http.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         return@withContext Result.failure(
                             IllegalStateException("HTTP ${response.code}")
