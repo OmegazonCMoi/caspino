@@ -1,6 +1,7 @@
 import WebSocket from "ws"
 import { calculateGains } from "./calculateRouletteGains.ts"
 import { RoulettePhase, type Bet } from "./utils/roulette.model.ts"
+import { playeEffect } from "../playeEffect.ts"
 
 export class RouletteGame {
   private phase: RoulettePhase = RoulettePhase.BETTING
@@ -60,7 +61,7 @@ export class RouletteGame {
     await Promise.all(
       Array.from(this.bets.entries()).map(async ([ws, bets]) => {
         const gains = await calculateGains(roulettteRandomResult, bets)
-
+        playeEffect(gains, bet)
         this.message(ws, {
           type: "BET_RESULT",
           payload: { gains, roulettteRandomResult },

@@ -1,5 +1,6 @@
 import type WebSocket from "ws"
 import { calculateGains } from "./calculateSlotsGains.ts"
+import { playeEffect } from "../playeEffect.ts"
 
 export class SlotsGame {
   private readonly symbols = [
@@ -17,6 +18,9 @@ export class SlotsGame {
   spin(bet: number, ws: WebSocket) {
     const slotResult = this.generateResult()
     const gains = calculateGains(bet, slotResult, this.symbols)
+    
+    playeEffect(gains, bet)
+
     this.message(ws, { type: "BET_RESULT", payload: { slotResult, gains } })
   }
 
