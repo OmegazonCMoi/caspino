@@ -3,9 +3,18 @@ import bodyParser from "body-parser"
 import bcrypt from "bcrypt"
 import crypto from "crypto"
 import jwt from "jsonwebtoken"
-import { sql } from "kysely"
-import { db } from "./db/index.ts"
 import "dotenv/config"
+import {
+  getUserByUsername,
+  getUserById,
+  getUserByUsernameOrEmail,
+  createUser,
+} from "./globalRepository.ts"
+import {
+  getPerGameStats,
+  getGgrTrend,
+  getPeakHours,
+} from "./statsRepository.ts"
 
 const SALT_ROUNDS = 12
 
@@ -54,38 +63,21 @@ export const verifyPassword = (
 app.post("/signup", async (req: Request, res: Response) => {
   const { username, password, email } = req.body
 
-  const user = await db
-    .selectFrom("users")
-    .select(["username", "email"])
-    .where((eb: any) =>
-      eb.or([eb("email", "=", email), eb("username", "=", username)]),
-    )
-    .executeTakeFirst()
+  const existing = await getUserByUsernameOrEmail(username, email)
 
-  if (user) {
-    if (user.username)
+  if (existing) {
+    if (existing.username === username)
       return res.status(409).json({ message: "Username already taken" })
 
     return res.status(409).json({ message: "Email address already taken" })
   }
 
   const hashedPassword = await hashPassword(password)
+  const id = crypto.randomUUID()
 
-  await db
-    .insertInto("users")
-    .values({
-      id: crypto.randomUUID(),
-      username,
-      password_hash: hashedPassword,
-      email,
-      is_active: true,
-      last_login: new Date(),
-      created_at: new Date(),
-      balance: 0,
-    })
-    .execute()
+  await createUser(id, username, hashedPassword, email)
 
-  const token = jwt.sign({ username }, JWT_SECRET, {
+  const token = jwt.sign({ username, userId: id }, JWT_SECRET, {
     expiresIn: "7d",
   })
 
@@ -95,20 +87,16 @@ app.post("/signup", async (req: Request, res: Response) => {
 app.post("/login", async (req: Request, res: Response) => {
   const { username, password } = req.body
 
-  const user = (await db
-    .selectFrom("users")
-    .select(["password_hash", "balance"])
-    .where("username", "=", username)
-    .executeTakeFirst()) ?? { password_hash: undefined, balance: 0 }
+  const user = await getUserByUsername(username)
 
   if (
-    !user.password_hash ||
-    !(await verifyPassword(password, user.password_hash))
+    !user?.password ||
+    !(await verifyPassword(password, user.password))
   ) {
     return res.status(401).json({ message: "Invalid credentials" })
   }
 
-  const token = jwt.sign({ username }, JWT_SECRET, {
+  const token = jwt.sign({ username, userId: user.id }, JWT_SECRET, {
     expiresIn: "7d",
   })
 
@@ -122,19 +110,17 @@ app.post("/logout", (req: Request, res: Response) => {
 })
 
 app.get("/me", authenticateJWT, async (req: Request, res: Response) => {
-  const { username } = (req as any).user
+  const { userId, username } = (req as any).user
 
-  const user = await db
-    .selectFrom("users")
-    .select(["balance", "email", "created_at"])
-    .where("username", "=", username)
-    .executeTakeFirst()
+  const user = userId
+    ? await getUserById(userId)
+    : await getUserByUsername(username)
 
   if (!user) return res.sendStatus(404)
 
   res.status(200).json({
     user: {
-      username,
+      username: user.username,
       email: user.email,
       balance: Number(user.balance),
       createdAt: user.created_at,
@@ -152,108 +138,9 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
     const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     const since7d = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
 
-    const perGame = await sql<{
-      game_type: string
-      sessions_24h: string
-      unique_players_24h: string
-      bet_volume_24h: string | null
-      total_payout_24h: string | null
-    }>`
-      SELECT
-        p.game_type,
-        COUNT(*) AS sessions_24h,
-        COUNT(DISTINCT p.user_id) AS unique_players_24h,
-        COALESCE(SUM(b.amount), 0) AS bet_volume_24h,
-        COALESCE(
-          SUM(
-            COALESCE(sr.gain, 0)
-            + COALESCE(rr.gain, 0)
-            + COALESCE(br.gain, 0)
-          ),
-          0
-        ) AS total_payout_24h
-      FROM parties p
-      LEFT JOIN bets b
-        ON b.party_id = p.id
-        AND b.created_at >= ${since24h}
-      LEFT JOIN slot_results sr ON sr.party_id = p.id
-      LEFT JOIN roulette_results rr ON rr.party_id = p.id
-      LEFT JOIN blackjack_results br ON br.party_id = p.id
-      WHERE p.created_at >= ${since24h}
-      GROUP BY p.game_type
-    `.execute(db)
-
-    const ggrTrend = await sql<{
-      day: Date
-      ggr: string | null
-    }>`
-      WITH bets_per_day AS (
-        SELECT
-          date_trunc('day', b.created_at) AS day,
-          SUM(b.amount) AS bet_volume
-        FROM bets b
-        WHERE b.created_at >= ${since7d}
-        GROUP BY day
-      ),
-      payouts_per_day AS (
-        SELECT
-          date_trunc('day', created_at) AS day,
-          SUM(gain) AS total_payout
-        FROM (
-          SELECT created_at, gain FROM slot_results
-          UNION ALL
-          SELECT created_at, gain FROM roulette_results
-          UNION ALL
-          SELECT created_at, gain FROM blackjack_results
-        ) r
-        WHERE created_at >= ${since7d}
-        GROUP BY day
-      )
-      SELECT
-        d::date AS day,
-        COALESCE(b.bet_volume, 0) - COALESCE(p.total_payout, 0) AS ggr
-      FROM generate_series(${since7d}::date, now()::date, '1 day') d
-      LEFT JOIN bets_per_day b ON b.day::date = d::date
-      LEFT JOIN payouts_per_day p ON p.day::date = d::date
-      ORDER BY day
-    `.execute(db)
-
-    const peakHours = await sql<{
-      hour_bucket: Date
-      sessions: string
-      ggr: string | null
-    }>`
-      WITH aggregates AS (
-        SELECT
-          date_trunc('hour', p.created_at) AS hour_bucket,
-          COUNT(*) AS sessions,
-          COALESCE(SUM(b.amount), 0) AS bet_volume,
-          COALESCE(
-            SUM(
-              COALESCE(sr.gain, 0)
-              + COALESCE(rr.gain, 0)
-              + COALESCE(br.gain, 0)
-            ),
-            0
-          ) AS total_payout
-        FROM parties p
-        LEFT JOIN bets b
-          ON b.party_id = p.id
-          AND b.created_at >= ${since24h}
-        LEFT JOIN slot_results sr ON sr.party_id = p.id
-        LEFT JOIN roulette_results rr ON rr.party_id = p.id
-        LEFT JOIN blackjack_results br ON br.party_id = p.id
-        WHERE p.created_at >= ${since24h}
-        GROUP BY hour_bucket
-      )
-      SELECT
-        hour_bucket,
-        sessions,
-        (bet_volume - total_payout) AS ggr
-      FROM aggregates
-      ORDER BY sessions DESC
-      LIMIT 5
-    `.execute(db)
+    const perGame = await getPerGameStats(since24h)
+    const ggrTrend = await getGgrTrend(since7d)
+    const peakHours = await getPeakHours(since24h)
 
     let totalSessions = 0
     let totalPlayers = 0

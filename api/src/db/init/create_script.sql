@@ -43,15 +43,14 @@ CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
 -- =========================
 CREATE TABLE IF NOT EXISTS parties (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   game_type game_type NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   finished_at TIMESTAMPTZ,
   CONSTRAINT parties_time_order CHECK (finished_at IS NULL OR finished_at >= created_at),
-  UNIQUE(id, user_id)
+  UNIQUE(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_parties_user_id_created_at ON parties(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_parties_created_at ON parties(created_at);
 CREATE INDEX IF NOT EXISTS idx_parties_game_type ON parties(game_type);
 
 -- =========================
@@ -72,9 +71,9 @@ CREATE TABLE IF NOT EXISTS bets (
   CONSTRAINT bets_game_fk FOREIGN KEY (game_id) REFERENCES parties(id) ON DELETE CASCADE,
   CONSTRAINT bets_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 
-  CONSTRAINT bets_user_matches_game
-    FOREIGN KEY (game_id, user_id)
-    REFERENCES parties(id, user_id)
+  CONSTRAINT bets_user_matches_party
+    FOREIGN KEY (party_id)
+    REFERENCES parties(id)
     ON DELETE CASCADE
 );
 
@@ -129,7 +128,9 @@ ALTER TABLE bets ADD CONSTRAINT roulette_low_high_payload CHECK (
 -- RESULTS
 -- =========================
 CREATE TABLE IF NOT EXISTS slot_results (
-  game_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
   result CHAR(3) NOT NULL,
   gain NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -138,7 +139,9 @@ CREATE TABLE IF NOT EXISTS slot_results (
 );
 
 CREATE TABLE IF NOT EXISTS roulette_results (
-  game_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
   number SMALLINT NOT NULL,
   color TEXT NOT NULL,
   gain NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -149,7 +152,9 @@ CREATE TABLE IF NOT EXISTS roulette_results (
 );
 
 CREATE TABLE IF NOT EXISTS blackjack_results (
-  game_id UUID PRIMARY KEY REFERENCES parties(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
   won BOOLEAN NOT NULL,
   gain NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -232,7 +237,7 @@ LANGUAGE plpgsql
 AS $$
 DECLARE u_id UUID;
 BEGIN
-  SELECT user_id INTO u_id FROM parties WHERE id = NEW.game_id;
+  SELECT id INTO u_id FROM users WHERE id = NEW.user_id;
 
   IF NEW.gain > 0 THEN
     INSERT INTO wallet_transactions (user_id, amount, reason, reference_id)
