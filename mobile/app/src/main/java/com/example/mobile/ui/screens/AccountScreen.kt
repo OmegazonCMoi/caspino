@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import com.example.mobile.ui.theme.AccentRed
 import com.example.mobile.ui.theme.DarkSurface
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import kotlinx.coroutines.launch
 
 private enum class AuthMode {
     None,
@@ -90,10 +92,11 @@ fun AccountScreen(onBackClick: () -> Unit) {
 
 @Composable
 private fun LoggedOutAccountView() {
+    val scope = rememberCoroutineScope()
     var mode by remember { mutableStateOf(AuthMode.None) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    var loginEmail by remember { mutableStateOf("") }
+    var loginUsername by remember { mutableStateOf("") }
     var loginPassword by remember { mutableStateOf("") }
 
     var registerUsername by remember { mutableStateOf("") }
@@ -156,10 +159,10 @@ private fun LoggedOutAccountView() {
                 Text("Connexion", color = DarkTextPrimary, fontWeight = FontWeight.SemiBold)
 
                 AppTextField(
-                    value = loginEmail,
-                    onValueChange = { loginEmail = it },
-                    label = "Email",
-                    placeholder = "nom@exemple.com",
+                    value = loginUsername,
+                    onValueChange = { loginUsername = it },
+                    label = "Pseudo",
+                    placeholder = "Ton pseudo",
                     transparentContainer = true
                 )
                 AppTextField(
@@ -179,13 +182,17 @@ private fun LoggedOutAccountView() {
                 }
 
                 AppButton(
-                    text = "Se connecter",
+                    text = if (AccountState.isLoading) "Connexion..." else "Se connecter",
                     onClick = {
-                        val ok = AccountState.login(
-                            inputEmail = loginEmail,
-                            inputPassword = loginPassword
-                        )
-                        error = if (ok) null else "Informations invalides."
+                        error = null
+                        scope.launch {
+                            AccountState.login(
+                                inputUsername = loginUsername,
+                                inputPassword = loginPassword
+                            ).onFailure { e ->
+                                error = e.message ?: "Identifiants invalides."
+                            }
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -239,15 +246,19 @@ private fun LoggedOutAccountView() {
                 }
 
                 AppButton(
-                    text = "Créer un compte",
+                    text = if (AccountState.isLoading) "Création..." else "Créer un compte",
                     onClick = {
-                        val ok = AccountState.register(
-                            inputUsername = registerUsername,
-                            inputEmail = registerEmail,
-                            inputPassword = registerPassword,
-                            inputConfirmPassword = registerConfirmPassword
-                        )
-                        error = if (ok) null else "Vérifie les champs du formulaire."
+                        error = null
+                        scope.launch {
+                            AccountState.register(
+                                inputUsername = registerUsername,
+                                inputEmail = registerEmail,
+                                inputPassword = registerPassword,
+                                inputConfirmPassword = registerConfirmPassword
+                            ).onFailure { e ->
+                                error = e.message ?: "Vérifie les champs du formulaire."
+                            }
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 )

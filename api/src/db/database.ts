@@ -13,6 +13,7 @@ export type BetKind =
 export interface UserTable {
   id: string
   username: string
+  password_hash: string
   email: string
   password: string
   is_active: boolean
@@ -21,7 +22,19 @@ export interface UserTable {
   balance: number
 }
 
-export interface PartyTable {
+export type GameType = "slot" | "roulette" | "blackjack"
+
+export type BetKind =
+  | "roulette_color"
+  | "roulette_number"
+  | "roulette_parity"
+  | "roulette_dozen"
+  | "roulette_column"
+  | "roulette_low_high"
+  | "blackjack_win"
+  | "slot_spin"
+
+export interface PartiesTable {
   id: string
   user_id: string
   game_type: GameType
@@ -29,17 +42,17 @@ export interface PartyTable {
   finished_at: Date | null
 }
 
-export interface BetTable {
+export interface BetsTable {
   id: string
   party_id: string
   user_id: string
   amount: number
   kind: BetKind
-  selection: Record<string, unknown>
+  selection: unknown
   created_at: Date
 }
 
-export interface SlotResultTable {
+export interface SlotResultsTable {
   party_id: string
   result: string
   gain: number
@@ -54,14 +67,14 @@ export interface RouletteResultTable {
   created_at: Date
 }
 
-export interface BlackjackResultTable {
+export interface BlackjackResultsTable {
   party_id: string
   won: boolean
   gain: number
   created_at: Date
 }
 
-export interface WalletTransactionTable {
+export interface WalletTransactionsTable {
   id: string
   user_id: string
   amount: number
@@ -72,10 +85,10 @@ export interface WalletTransactionTable {
 
 export interface Database {
   users: UserTable
-  parties: PartyTable
-  bets: BetTable
-  slot_results: SlotResultTable
-  roulette_results: RouletteResultTable
-  blackjack_results: BlackjackResultTable
-  wallet_transactions: WalletTransactionTable
+  parties: PartiesTable
+  bets: BetsTable
+  slot_results: SlotResultsTable
+  roulette_results: RouletteResultsTable
+  blackjack_results: BlackjackResultsTable
+  wallet_transactions: WalletTransactionsTable
 }

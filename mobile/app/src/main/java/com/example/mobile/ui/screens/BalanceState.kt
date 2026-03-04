@@ -8,7 +8,7 @@ import java.time.LocalDate
  * et quelques drapeaux liés aux récompenses.
  */
 object BalanceState {
-    val balance = mutableIntStateOf(1000)
+    val balance = mutableIntStateOf(0)
 
     // Date du dernier claim du pack gratuit de pinos (en mémoire, par session)
     private var lastFreeClaimDate: LocalDate? = null
