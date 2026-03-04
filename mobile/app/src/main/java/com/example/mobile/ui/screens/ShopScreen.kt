@@ -18,6 +18,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +40,8 @@ import com.example.mobile.ui.theme.DarkBackground
 import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import com.example.mobile.network.WalletApi
+import kotlinx.coroutines.launch
 
 data class PinosOffer(
     val label: String,
@@ -50,8 +55,11 @@ data class PinosOffer(
 fun ShopScreen(
     onBackClick: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     var balance by BalanceState.balance
-    val hasClaimedFreeToday = BalanceState.hasClaimedFreeToday()
+    var claimingBonus by remember { mutableStateOf(false) }
+    var claimError by remember { mutableStateOf<String?>(null) }
+    var hasClaimedFreeToday by remember { mutableStateOf(false) }
 
     val freeOffer = PinosOffer(
         label = "Starter",
@@ -107,11 +115,23 @@ fun ShopScreen(
                 // Offre gratuite : toute la largeur
                 PinosOfferCardFull(
                     offer = freeOffer,
-                    enabled = !hasClaimedFreeToday,
+                    enabled = !hasClaimedFreeToday && !claimingBonus && AccountState.isLoggedIn,
                     onBuyClick = {
-                        if (!BalanceState.hasClaimedFreeToday()) {
-                            BalanceState.addPinos(freeOffer.pinos)
-                            BalanceState.markFreeClaimedToday()
+                        claimError = null
+                        claimingBonus = true
+                        scope.launch {
+                            WalletApi.claimDailyBonus()
+                                .onSuccess { resp ->
+                                    BalanceState.balance.intValue = resp.balance
+                                    hasClaimedFreeToday = true
+                                }
+                                .onFailure { e ->
+                                    claimError = e.message
+                                    if (e.message?.contains("déjà") == true) {
+                                        hasClaimedFreeToday = true
+                                    }
+                                }
+                            claimingBonus = false
                         }
                     }
                 )

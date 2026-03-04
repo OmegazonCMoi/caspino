@@ -146,6 +146,50 @@ app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "api-caspino" })
 })
 
+app.post("/bonus/daily", authenticateJWT, async (req: Request, res: Response) => {
+  try {
+    const { username } = (req as any).user
+    const DAILY_AMOUNT = 500
+
+    const user = await db
+      .selectFrom("users")
+      .select("id")
+      .where("username", "=", username)
+      .executeTakeFirst()
+
+    if (!user) return res.status(404).json({ message: "User not found" })
+
+    await db
+      .insertInto("wallet_transactions")
+      .values({
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        amount: DAILY_AMOUNT,
+        reason: "daily_bonus",
+        created_at: new Date(),
+      })
+      .execute()
+
+    const updated = await db
+      .selectFrom("users")
+      .select("balance")
+      .where("id", "=", user.id)
+      .executeTakeFirst()
+
+    res.status(200).json({
+      message: "Bonus journalier récupéré",
+      amount: DAILY_AMOUNT,
+      balance: Number(updated?.balance ?? 0),
+    })
+  } catch (error: any) {
+    if (error?.code === "23505") {
+      return res.status(409).json({ message: "Bonus déjà récupéré aujourd'hui" })
+    }
+    console.error("Daily bonus error", error)
+    res.status(500).json({ message: "Erreur serveur" })
+  }
+})
+
 app.get("/stats/platform", async (req: Request, res: Response) => {
   try {
     const now = new Date()

@@ -17,7 +17,14 @@ data class SlotSpinResponse(
 )
 
 object SlotsApi {
-    private const val WS_URL = "ws://10.109.110.27:5700"
+    private val WS_URL: String
+        get() {
+            val host = ApiClient.BASE_URL
+                .removePrefix("http://")
+                .removePrefix("https://")
+                .substringBefore(":")
+            return "ws://$host:5700"
+        }
 
     private var ws: WebSocket? = null
     private var authenticated = false

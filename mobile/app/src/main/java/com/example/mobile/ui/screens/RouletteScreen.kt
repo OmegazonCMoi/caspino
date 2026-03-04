@@ -325,7 +325,7 @@ fun RouletteScreen(
                                 if (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) {
                                     val totalStake = bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1)
                                     if (balance >= totalStake) {
-                                        BalanceState.addPinos(-totalStake)
+                                        BalanceState.balance.intValue -= totalStake
                                         isBettingPhase = false
                                     }
                                 }
@@ -370,7 +370,7 @@ fun RouletteScreen(
                                         betPerSelection = bet
                                     )
                                     if (payout > 0) {
-                                        BalanceState.addPinos(payout)
+                                        BalanceState.balance.intValue += payout
                                     }
 
                                     // Déclenche les confettis uniquement si au moins une mise est gagnante

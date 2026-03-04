@@ -121,6 +121,9 @@ fun SlotMachineScreen(
     val spinStopMediaPlayer = remember {
         MediaPlayer.create(context, R.raw.slotmachine_stop)
     }
+    val loseMediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.slotmachine_loose)
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -135,6 +138,9 @@ fun SlotMachineScreen(
             } catch (_: Exception) { }
             try {
                 spinStopMediaPlayer.release()
+            } catch (_: Exception) { }
+            try {
+                loseMediaPlayer.release()
             } catch (_: Exception) { }
         }
     }
@@ -224,6 +230,10 @@ fun SlotMachineScreen(
             val win = serverResult.gain
             balance = serverResult.balance
             lastWin = win
+
+            if (win == 0) {
+                try { loseMediaPlayer.seekTo(0); loseMediaPlayer.start() } catch (_: Exception) { }
+            }
 
             if (win > 0) {
                 val isJackpot = (target1 == target2 && target2 == target3)
