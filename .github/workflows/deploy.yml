@@ -7,9 +7,14 @@ on:
       - "api/**"
       - ".github/workflows/deploy.yml"
 
+concurrency:
+  group: caspino-api
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
