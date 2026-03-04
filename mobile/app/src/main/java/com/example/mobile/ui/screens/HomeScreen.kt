@@ -100,9 +100,10 @@ fun HomeScreen() {
 
             Spacer(Modifier.height(28.dp))
 
-            // ===== ALL GAMES CARD =====
+            // ===== RANDOM GAME CARD =====
             AllGamesCard(
-                onClick = { /* optionnel */ }
+                gameNames = games.map { it.title },
+                onClick = { gameName -> navigateToGame(gameName) }
             )
 
             Spacer(Modifier.height(32.dp))
@@ -134,7 +135,8 @@ fun HomeScreen() {
 
 @Composable
 fun AllGamesCard(
-    onClick: () -> Unit
+    gameNames: List<String>,
+    onClick: (String) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -149,7 +151,11 @@ fun AllGamesCard(
                     )
                 )
             )
-            .clickable { onClick() }
+            .clickable {
+                if (gameNames.isNotEmpty()) {
+                    onClick(gameNames.random())
+                }
+            }
             .padding(20.dp)
     ) {
         Column(

@@ -51,7 +51,7 @@ fun ShopScreen(
     onBackClick: () -> Unit
 ) {
     var balance by BalanceState.balance
-    val hasClaimedFreeToday = BalanceState.hasClaimedFreeToday()
+    var hasClaimedFreeToday by BalanceState.hasClaimedFreeTodayState
 
     val freeOffer = PinosOffer(
         label = "Starter",
@@ -104,10 +104,11 @@ fun ShopScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Offre gratuite : toute la largeur
+                // Offre gratuite : une seule récup par jour (state pour recomposition)
+                val hasClaimedFree = BalanceState.hasClaimedFreeToday()
                 PinosOfferCardFull(
                     offer = freeOffer,
-                    enabled = !hasClaimedFreeToday,
+                    enabled = !hasClaimedFree,
                     onBuyClick = {
                         if (!BalanceState.hasClaimedFreeToday()) {
                             BalanceState.addPinos(freeOffer.pinos)
