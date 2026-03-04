@@ -16,6 +16,19 @@ data class AuthResponse(
 object AuthApi {
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
+    private fun parseJsonBody(response: okhttp3.Response): Result<JSONObject> {
+        val contentType = response.header("Content-Type") ?: ""
+        val body = response.body?.string() ?: ""
+
+        if (!contentType.contains("application/json")) {
+            return Result.failure(
+                IllegalStateException("Serveur injoignable (réponse non-JSON)")
+            )
+        }
+
+        return Result.success(JSONObject(body))
+    }
+
     suspend fun login(username: String, password: String): Result<AuthResponse> {
         return withContext(Dispatchers.IO) {
             try {
@@ -30,8 +43,9 @@ object AuthApi {
                     .build()
 
                 ApiClient.http.newCall(request).execute().use { response ->
-                    val body = response.body?.string() ?: ""
-                    val json = JSONObject(body)
+                    val parsed = parseJsonBody(response)
+                    if (parsed.isFailure) return@withContext Result.failure(parsed.exceptionOrNull()!!)
+                    val json = parsed.getOrThrow()
 
                     if (!response.isSuccessful) {
                         val msg = json.optString("message", "Identifiants invalides")
@@ -71,8 +85,9 @@ object AuthApi {
                     .build()
 
                 ApiClient.http.newCall(request).execute().use { response ->
-                    val body = response.body?.string() ?: ""
-                    val json = JSONObject(body)
+                    val parsed = parseJsonBody(response)
+                    if (parsed.isFailure) return@withContext Result.failure(parsed.exceptionOrNull()!!)
+                    val json = parsed.getOrThrow()
 
                     if (!response.isSuccessful) {
                         val msg = json.optString("message", "Inscription échouée")
@@ -112,8 +127,9 @@ object AuthApi {
                         )
                     }
 
-                    val body = response.body?.string() ?: ""
-                    val json = JSONObject(body).getJSONObject("user")
+                    val parsed = parseJsonBody(response)
+                    if (parsed.isFailure) return@withContext Result.failure(parsed.exceptionOrNull()!!)
+                    val json = parsed.getOrThrow().getJSONObject("user")
 
                     Result.success(
                         MeResponse(
