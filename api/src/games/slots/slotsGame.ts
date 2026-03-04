@@ -20,7 +20,7 @@ export class SlotsGame {
     this.message(ws, { type: "BET_RESULT", payload: { slotResult, gains } })
   }
 
-  private generateResult(reels: number = 3): string[] {
+  generateResult(reels: number = 3): string[] {
     const totalWeight = this.symbols.reduce((sum, sym) => sum + sym.weight, 0)
 
     const pickOne = (): string => {

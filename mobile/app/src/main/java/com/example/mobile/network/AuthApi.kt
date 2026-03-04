@@ -9,7 +9,8 @@ import org.json.JSONObject
 
 data class AuthResponse(
     val token: String,
-    val username: String
+    val username: String,
+    val balance: Int
 )
 
 object AuthApi {
@@ -38,10 +39,11 @@ object AuthApi {
                     }
 
                     val token = json.getString("token")
+                    val balance = json.optInt("balance", 0)
                     ApiClient.token = token
 
                     Result.success(
-                        AuthResponse(token = token, username = username)
+                        AuthResponse(token = token, username = username, balance = balance)
                     )
                 }
             } catch (e: Exception) {
@@ -78,10 +80,48 @@ object AuthApi {
                     }
 
                     val token = json.getString("token")
+                    val balance = json.optInt("balance", 0)
                     ApiClient.token = token
 
                     Result.success(
-                        AuthResponse(token = token, username = username)
+                        AuthResponse(token = token, username = username, balance = balance)
+                    )
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun fetchMe(): Result<MeResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = ApiClient.token
+                    ?: return@withContext Result.failure(IllegalStateException("No token"))
+
+                val request = Request.Builder()
+                    .url("${ApiClient.BASE_URL}/me")
+                    .addHeader("Authorization", "Bearer $token")
+                    .get()
+                    .build()
+
+                ApiClient.http.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(
+                            IllegalStateException("HTTP ${response.code}")
+                        )
+                    }
+
+                    val body = response.body?.string() ?: ""
+                    val json = JSONObject(body).getJSONObject("user")
+
+                    Result.success(
+                        MeResponse(
+                            username = json.optString("username"),
+                            email = json.optString("email"),
+                            balance = json.optInt("balance", 0),
+                            createdAt = json.optString("createdAt")
+                        )
                     )
                 }
             } catch (e: Exception) {
@@ -90,3 +130,10 @@ object AuthApi {
         }
     }
 }
+
+data class MeResponse(
+    val username: String,
+    val email: String,
+    val balance: Int,
+    val createdAt: String
+)

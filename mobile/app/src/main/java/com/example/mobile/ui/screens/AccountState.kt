@@ -23,6 +23,28 @@ object AccountState {
     var isLoading by mutableStateOf(false)
         private set
 
+    fun restoreSessionLocal() {
+        val savedToken = ApiClient.getSavedToken()
+        val savedUsername = ApiClient.getSavedUsername()
+        if (savedToken != null && savedUsername != null) {
+            ApiClient.token = savedToken
+            username = savedUsername
+            email = ApiClient.getSavedEmail() ?: ""
+            isLoggedIn = true
+        }
+    }
+
+    suspend fun refreshFromServer() {
+        if (!isLoggedIn) return
+        AuthApi.fetchMe().onSuccess { me ->
+            username = me.username
+            email = me.email
+            BalanceState.balance.intValue = me.balance
+        }.onFailure {
+            logout()
+        }
+    }
+
     suspend fun login(inputUsername: String, inputPassword: String): Result<Unit> {
         isLoading = true
         val result = AuthApi.login(inputUsername, inputPassword)
@@ -33,6 +55,8 @@ object AccountState {
             email = ""
             if (memberSince == null) memberSince = LocalDate.now()
             isLoggedIn = true
+            BalanceState.balance.intValue = auth.balance
+            ApiClient.saveSession(auth.token, auth.username, "")
         }
     }
 
@@ -60,6 +84,8 @@ object AccountState {
             email = inputEmail
             memberSince = LocalDate.now()
             isLoggedIn = true
+            BalanceState.balance.intValue = auth.balance
+            ApiClient.saveSession(auth.token, auth.username, inputEmail)
         }
     }
 
@@ -67,6 +93,7 @@ object AccountState {
         isLoggedIn = false
         username = ""
         email = ""
-        ApiClient.token = null
+        BalanceState.balance.intValue = 0
+        ApiClient.clearSession()
     }
 }

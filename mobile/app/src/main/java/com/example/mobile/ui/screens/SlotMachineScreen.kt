@@ -71,11 +71,14 @@ import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
 import android.media.MediaPlayer
+import com.example.mobile.network.SlotsApi
+import com.example.mobile.network.SlotSpinResponse
 import com.example.mobile.ui.components.ConfettiOverlay
 import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
 import kotlin.random.Random
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
@@ -136,26 +139,7 @@ fun SlotMachineScreen(
         }
     }
     
-    fun calculateWin(r1: Int, r2: Int, r3: Int, betAmount: Int): Int {
-        return when {
-            // 3 symboles identiques
-            r1 == r2 && r2 == r3 -> {
-                when (r1) {
-                    6 -> betAmount * 100 // 7️⃣ 7️⃣ 7️⃣  (jackpot max)
-                    5 -> betAmount * 50  // ⭐ ⭐ ⭐
-                    4 -> betAmount * 25  // 🔔 🔔 🔔
-                    3 -> betAmount * 15  // 🍇 🍇 🍇
-                    2 -> betAmount * 12  // 🍊 🍊 🍊
-                    1 -> betAmount * 8   // 🍋 🍋 🍋
-                    0 -> betAmount * 5   // 🍒 🍒 🍒
-                    else -> betAmount * 10
-                }
-            }
-            // 2 symboles identiques (peu importe lesquels)
-            r1 == r2 || r2 == r3 || r1 == r3 -> betAmount * 2
-            else -> 0
-        }
-    }
+    var spinError by remember { mutableStateOf<String?>(null) }
 
     // Bottom bar items (navigation principale)
     val bottomBarItems = listOf(
@@ -176,190 +160,114 @@ fun SlotMachineScreen(
         }
     )
     
-    // Gérer l'animation du spin
+    // Appel API en parallèle de l'animation, résultat appliqué une fois les rouleaux arrêtés
     LaunchedEffect(spinTrigger) {
         if (spinTrigger == 0) return@LaunchedEffect
 
         isSpinning = true
-        // Son de démarrage, suivi instantanément du son de spin en boucle
-        try {
-            spinStartMediaPlayer.seekTo(0)
-            spinStartMediaPlayer.start()
-        } catch (_: Exception) { }
-        try {
-            spinLoopMediaPlayer.seekTo(0)
-            spinLoopMediaPlayer.start()
-        } catch (_: Exception) { }
-        // La mise est déjà déduite dans spin() au clic sur "Jouer"
+        spinError = null
 
-        // Cible finale des rouleaux
-        val target1 = Random.nextInt(symbolDrawables.size)
-        val target2 = Random.nextInt(symbolDrawables.size)
-        val target3 = Random.nextInt(symbolDrawables.size)
+        try { spinStartMediaPlayer.seekTo(0); spinStartMediaPlayer.start() } catch (_: Exception) { }
+        try { spinLoopMediaPlayer.seekTo(0); spinLoopMediaPlayer.start() } catch (_: Exception) { }
 
-        // Durée totale et arrêt progressif de chaque colonne
+        val apiCall = async { SlotsApi.spin(bet) }
+
         val stepDelay = 80L
-        val stepsReel1 = 20   // ~1.6s
-        val stepsReel2 = 35   // ~2.8s
-        val stepsReel3 = 50   // ~4.0s
+        val stepsReel1 = 20
+        val stepsReel2 = 35
+        val stepsReel3 = 50
 
-        for (i in 0 until stepsReel3) {
-            // Colonne 1 : aléatoire puis valeur finale
-            when {
-                i < stepsReel1 - 1 -> reel1 = Random.nextInt(symbolDrawables.size)
-                i == stepsReel1 - 1 -> {
-                    reel1 = target1
-                    // Son d'arrêt du premier rouleau
-                    try {
-                        spinStopMediaPlayer.seekTo(0)
-                        spinStopMediaPlayer.start()
-                    } catch (_: Exception) { }
-                }
-                // ensuite on ne touche plus à reel1
-            }
-
-            // Colonne 2
-            when {
-                i < stepsReel2 - 1 -> reel2 = Random.nextInt(symbolDrawables.size)
-                i == stepsReel2 - 1 -> {
-                    reel2 = target2
-                    // Son d'arrêt du deuxième rouleau
-                    try {
-                        spinStopMediaPlayer.seekTo(0)
-                        spinStopMediaPlayer.start()
-                    } catch (_: Exception) { }
-                }
-            }
-
-            // Colonne 3
-            when {
-                i < stepsReel3 - 1 -> reel3 = Random.nextInt(symbolDrawables.size)
-                i == stepsReel3 - 1 -> {
-                    reel3 = target3
-                    // Son d'arrêt du troisième rouleau
-                    try {
-                        spinStopMediaPlayer.seekTo(0)
-                        spinStopMediaPlayer.start()
-                    } catch (_: Exception) { }
-                }
-            }
-
+        // Animation aléatoire pendant que l'API répond
+        for (i in 0 until stepsReel1 - 1) {
+            reel1 = Random.nextInt(symbolDrawables.size)
+            reel2 = Random.nextInt(symbolDrawables.size)
+            reel3 = Random.nextInt(symbolDrawables.size)
             delay(stepDelay)
         }
 
-        // Arrête le son de spin quand les rouleaux se sont arrêtés
+        val apiResult = apiCall.await()
+
+        val serverResult = apiResult.getOrNull()
+        // Symboles serveur : 1-7 → indices mobile 0-6
+        val target1 = serverResult?.result?.getOrNull(0)?.minus(1)?.coerceIn(0, symbolDrawables.size - 1) ?: Random.nextInt(symbolDrawables.size)
+        val target2 = serverResult?.result?.getOrNull(1)?.minus(1)?.coerceIn(0, symbolDrawables.size - 1) ?: Random.nextInt(symbolDrawables.size)
+        val target3 = serverResult?.result?.getOrNull(2)?.minus(1)?.coerceIn(0, symbolDrawables.size - 1) ?: Random.nextInt(symbolDrawables.size)
+
+        reel1 = target1
+        try { spinStopMediaPlayer.seekTo(0); spinStopMediaPlayer.start() } catch (_: Exception) { }
+
+        for (i in stepsReel1 until stepsReel2 - 1) {
+            reel2 = Random.nextInt(symbolDrawables.size)
+            reel3 = Random.nextInt(symbolDrawables.size)
+            delay(stepDelay)
+        }
+
+        reel2 = target2
+        try { spinStopMediaPlayer.seekTo(0); spinStopMediaPlayer.start() } catch (_: Exception) { }
+
+        for (i in stepsReel2 until stepsReel3 - 1) {
+            reel3 = Random.nextInt(symbolDrawables.size)
+            delay(stepDelay)
+        }
+
+        reel3 = target3
+        try { spinStopMediaPlayer.seekTo(0); spinStopMediaPlayer.start() } catch (_: Exception) { }
+
         try {
             if (spinLoopMediaPlayer.isPlaying) {
                 spinLoopMediaPlayer.pause()
                 spinLoopMediaPlayer.seekTo(0)
             }
         } catch (_: Exception) { }
-        
-        // Calculer les gains et créditer les pinos (au bon moment : une fois les rouleaux arrêtés)
-        val win = calculateWin(reel1, reel2, reel3, bet)
-        if (win > 0) {
-            BalanceState.addPinos(win)
-        }
-        lastWin = win
 
-        if (win > 0) {
-            val isJackpot = (reel1 == reel2 && reel2 == reel3)
-            val durationSec = if (isJackpot) 5.0 else 2.5
-            // Même configuration de confettis que pour les boutons de test
-            confettiParties = listOf(
-                Party(
-                    angle = -45,
-                    spread = 45,
-                    position = Position.Relative(0.0, 0.26),
-                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                    fadeOutEnabled = true
-                ),
-                Party(
-                    angle = -135,
-                    spread = 45,
-                    position = Position.Relative(1.0, 0.26),
-                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                    fadeOutEnabled = true
+        if (serverResult != null) {
+            val win = serverResult.gain
+            balance = serverResult.balance
+            lastWin = win
+
+            if (win > 0) {
+                val isJackpot = (target1 == target2 && target2 == target3)
+                val durationSec = if (isJackpot) 5.0 else 2.5
+                confettiParties = listOf(
+                    Party(
+                        angle = -45, spread = 45,
+                        position = Position.Relative(0.0, 0.26),
+                        emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                        fadeOutEnabled = true
+                    ),
+                    Party(
+                        angle = -135, spread = 45,
+                        position = Position.Relative(1.0, 0.26),
+                        emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                        fadeOutEnabled = true
+                    )
                 )
-            )
-            try {
-                val volume = if (isJackpot) 1.0f else 0.5f
-                winMediaPlayer.setVolume(volume, volume)
-                if (isJackpot) {
-                    repeat(3) {
-                        winMediaPlayer.seekTo(0)
-                        winMediaPlayer.start()
-                        val durationMs = winMediaPlayer.duration.toLong().coerceIn(200, 2000)
-                        delay(durationMs)
-                    }
-                } else {
-                    winMediaPlayer.seekTo(0)
-                    winMediaPlayer.start()
-                }
-            } catch (_: Exception) { }
-        } else {
-        }
-
-        isSpinning = false
-    }
-
-    // Utilitaire pour appliquer un résultat forcé (tests)
-    fun applyForcedResult(r1: Int, r2: Int, r3: Int) {
-        // on ne manipule pas isSpinning ici pour garder ça simple pour les tests
-        reel1 = r1
-        reel2 = r2
-        reel3 = r3
-
-        val win = calculateWin(reel1, reel2, reel3, bet)
-        if (win > 0) {
-            BalanceState.addPinos(win)
-        }
-        lastWin = win
-
-        if (win > 0) {
-            val isJackpot = (reel1 == reel2 && reel2 == reel3)
-            val durationSec = if (isJackpot) 5.0 else 2.5
-            confettiParties = listOf(
-                Party(
-                    angle = -45,
-                    spread = 45,
-                    position = Position.Relative(0.0, 0.26),
-                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                    fadeOutEnabled = true
-                ),
-                Party(
-                    angle = -135,
-                    spread = 45,
-                    position = Position.Relative(1.0, 0.26),
-                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                    fadeOutEnabled = true
-                )
-            )
-            try {
-                val volume = if (isJackpot) 1.0f else 0.5f
-                winMediaPlayer.setVolume(volume, volume)
-                if (isJackpot) {
-                    scope.launch {
+                try {
+                    val volume = if (isJackpot) 1.0f else 0.5f
+                    winMediaPlayer.setVolume(volume, volume)
+                    if (isJackpot) {
                         repeat(3) {
                             winMediaPlayer.seekTo(0)
                             winMediaPlayer.start()
                             val durationMs = winMediaPlayer.duration.toLong().coerceIn(200, 2000)
                             delay(durationMs)
                         }
+                    } else {
+                        winMediaPlayer.seekTo(0)
+                        winMediaPlayer.start()
                     }
-                } else {
-                    winMediaPlayer.seekTo(0)
-                    winMediaPlayer.start()
-                }
-            } catch (_: Exception) { }
+                } catch (_: Exception) { }
+            }
         } else {
+            spinError = apiResult.exceptionOrNull()?.message ?: "Erreur réseau"
+            lastWin = 0
         }
+
+        isSpinning = false
     }
 
     fun spin() {
         if (isSpinning || balance < bet) return
-        
-        balance -= bet
         spinTrigger++
     }
 
@@ -488,12 +396,32 @@ fun SlotMachineScreen(
                 )
             }
 
+            if (spinError != null) {
+                Text(
+                    text = spinError ?: "",
+                    fontSize = 12.sp,
+                    color = Color(0xFFEF4444),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            if (!AccountState.isLoggedIn) {
+                Text(
+                    text = "Connecte-toi pour jouer",
+                    fontSize = 13.sp,
+                    color = Color(0xFFEF4444),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             AppButton(
                 text = if (isSpinning) "En cours..." else "Jouer",
                 onClick = { spin() },
                 variant = ButtonVariant.Primary,
                 size = ButtonSize.Large,
-                enabled = !isSpinning && balance >= bet,
+                enabled = !isSpinning && balance >= bet && AccountState.isLoggedIn,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth()
             )

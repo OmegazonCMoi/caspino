@@ -89,21 +89,21 @@ app.post("/signup", async (req: Request, res: Response) => {
     expiresIn: "7d",
   })
 
-  res.status(200).json({ message: "Login successful", token })
+  res.status(200).json({ message: "Login successful", token, balance: 0 })
 })
 
 app.post("/login", async (req: Request, res: Response) => {
   const { username, password } = req.body
 
-  const { password_hash: hashedPasswordForUser } = (await db
+  const user = (await db
     .selectFrom("users")
-    .select("password_hash")
+    .select(["password_hash", "balance"])
     .where("username", "=", username)
-    .executeTakeFirst()) ?? { password: undefined }
+    .executeTakeFirst()) ?? { password_hash: undefined, balance: 0 }
 
   if (
-    !hashedPasswordForUser ||
-    !(await verifyPassword(password, hashedPasswordForUser))
+    !user.password_hash ||
+    !(await verifyPassword(password, user.password_hash))
   ) {
     return res.status(401).json({ message: "Invalid credentials" })
   }
@@ -112,7 +112,7 @@ app.post("/login", async (req: Request, res: Response) => {
     expiresIn: "7d",
   })
 
-  res.status(200).json({ message: "Login successful", token })
+  res.status(200).json({ message: "Login successful", token, balance: Number(user.balance) })
 })
 
 app.post("/logout", (req: Request, res: Response) => {
@@ -121,8 +121,25 @@ app.post("/logout", (req: Request, res: Response) => {
     .json({ message: "Logout successful. Delete your token on client." })
 })
 
-app.get("/me", authenticateJWT, (req: Request, res: Response) => {
-  res.status(200).json({ user: (req as any).user })
+app.get("/me", authenticateJWT, async (req: Request, res: Response) => {
+  const { username } = (req as any).user
+
+  const user = await db
+    .selectFrom("users")
+    .select(["balance", "email", "created_at"])
+    .where("username", "=", username)
+    .executeTakeFirst()
+
+  if (!user) return res.sendStatus(404)
+
+  res.status(200).json({
+    user: {
+      username,
+      email: user.email,
+      balance: Number(user.balance),
+      createdAt: user.created_at,
+    },
+  })
 })
 
 app.get("/health", (req: Request, res: Response) => {
