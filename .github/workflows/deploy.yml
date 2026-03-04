@@ -6,6 +6,7 @@ on:
     paths:
       - "api/**"
       - ".github/workflows/deploy.yml"
+
 concurrency:
   group: caspino-api
   cancel-in-progress: true
