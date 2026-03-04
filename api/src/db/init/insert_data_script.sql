@@ -44,7 +44,7 @@ INSERT INTO parties (id, user_id, game_type) VALUES
 -- =========================
 
 -- Alice roulette 20€ rouge
-INSERT INTO bets (party_id, user_id, amount, kind, selection)
+INSERT INTO bets (game_id, user_id, amount, kind, selection)
 VALUES (
 '10000000-0000-0000-0000-000000000001',
 '00000000-0000-0000-0000-000000000001',
@@ -54,7 +54,7 @@ VALUES (
 );
 
 -- Bob blackjack 30€
-INSERT INTO bets (party_id, user_id, amount, kind, selection)
+INSERT INTO bets (game_id, user_id, amount, kind, selection)
 VALUES (
 '10000000-0000-0000-0000-000000000002',
 '00000000-0000-0000-0000-000000000002',
@@ -64,7 +64,7 @@ VALUES (
 );
 
 -- Charlie slot 15€
-INSERT INTO bets (party_id, user_id, amount, kind, selection)
+INSERT INTO bets (game_id, user_id, amount, kind, selection)
 VALUES (
 '10000000-0000-0000-0000-000000000003',
 '00000000-0000-0000-0000-000000000003',
@@ -74,7 +74,7 @@ VALUES (
 );
 
 -- David roulette 10€ numéro 7
-INSERT INTO bets (party_id, user_id, amount, kind, selection)
+INSERT INTO bets (game_id, user_id, amount, kind, selection)
 VALUES (
 '10000000-0000-0000-0000-000000000004',
 '00000000-0000-0000-0000-000000000004',
@@ -84,7 +84,7 @@ VALUES (
 );
 
 -- Eva blackjack 50€
-INSERT INTO bets (party_id, user_id, amount, kind, selection)
+INSERT INTO bets (game_id, user_id, amount, kind, selection)
 VALUES (
 '10000000-0000-0000-0000-000000000005',
 '00000000-0000-0000-0000-000000000005',
@@ -98,23 +98,23 @@ VALUES (
 -- =========================
 
 -- Alice gagne 40€
-INSERT INTO roulette_results (party_id, number, color, gain)
+INSERT INTO roulette_results (game_id, number, color, gain)
 VALUES ('10000000-0000-0000-0000-000000000001', 7, 'red', 40);
 
 -- Bob perd
-INSERT INTO blackjack_results (party_id, won, gain)
+INSERT INTO blackjack_results (game_id, won, gain)
 VALUES ('10000000-0000-0000-0000-000000000002', false, 0);
 
 -- Charlie gagne 60€
-INSERT INTO slot_results (party_id, result, gain)
+INSERT INTO slot_results (game_id, result, gain)
 VALUES ('10000000-0000-0000-0000-000000000003', '777', 60);
 
 -- David perd
-INSERT INTO roulette_results (party_id, number, color, gain)
+INSERT INTO roulette_results (game_id, number, color, gain)
 VALUES ('10000000-0000-0000-0000-000000000004', 12, 'black', 0);
 
 -- Eva gagne 100€
-INSERT INTO blackjack_results (party_id, won, gain)
+INSERT INTO blackjack_results (game_id, won, gain)
 VALUES ('10000000-0000-0000-0000-000000000005', true, 100);
 
 COMMIT;
