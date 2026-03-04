@@ -25,7 +25,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +44,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
+import com.example.mobile.network.GameStatDto
+import com.example.mobile.network.StatsApi
+import com.example.mobile.network.StatsPlatformResponse
 import com.example.mobile.ui.components.AppBottomBar
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BottomBarItem
@@ -57,7 +63,6 @@ import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
 import com.example.mobile.ui.theme.DarkTextTertiary
 
-// Vue plateforme Caspino (mock local, DB à brancher plus tard)
 private data class PlatformGameStat(
     val name: String,
     val sessions24h: Int,
@@ -72,46 +77,6 @@ private data class PeakHour(
     val hour: String,
     val sessions: Int,
     val ggr: Int
-)
-
-private val games = listOf(
-    PlatformGameStat(
-        name = "Blackjack",
-        sessions24h = 1260,
-        uniquePlayers24h = 412,
-        betVolume24h = 186_000,
-        ggr24h = 22_300,
-        payoutRate = 88,
-        color = AccentBlue
-    ),
-    PlatformGameStat(
-        name = "Roulette",
-        sessions24h = 930,
-        uniquePlayers24h = 365,
-        betVolume24h = 134_500,
-        ggr24h = 18_100,
-        payoutRate = 86,
-        color = AccentGreen
-    ),
-    PlatformGameStat(
-        name = "Machine à sous",
-        sessions24h = 1780,
-        uniquePlayers24h = 598,
-        betVolume24h = 252_000,
-        ggr24h = 41_900,
-        payoutRate = 83,
-        color = AccentOrange
-    )
-)
-
-private val ggrTrend7d = listOf(58_200, 61_400, 59_700, 64_900, 67_300, 69_200, 72_300)
-
-private val peakHours = listOf(
-    PeakHour("18h-19h", 294, 7_900),
-    PeakHour("20h-21h", 338, 9_800),
-    PeakHour("21h-22h", 371, 10_200),
-    PeakHour("22h-23h", 322, 8_600),
-    PeakHour("23h-00h", 289, 7_700)
 )
 
 @Composable
@@ -130,63 +95,106 @@ fun StatsScreen(onBackClick: () -> Unit) {
         }
     )
 
-    val totalSessions = games.sumOf { it.sessions24h }
-    val totalPlayers = games.sumOf { it.uniquePlayers24h }
-    val totalBetVolume = games.sumOf { it.betVolume24h }
-    val totalGgr = games.sumOf { it.ggr24h }
-    val payout = if (totalBetVolume > 0) {
-        (100f - (totalGgr * 100f / totalBetVolume)).toInt()
-    } else {
-        0
+    var stats by remember { mutableStateOf<StatsPlatformResponse?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        val result = StatsApi.fetchPlatformStats()
+        result.onSuccess {
+            stats = it
+            isLoading = false
+        }.onFailure {
+            error = "Impossible de charger les statistiques."
+            isLoading = false
+        }
     }
 
     Scaffold(
         topBar = { AppHeader(title = "Stats Caspino", onBackClick = onBackClick) },
         bottomBar = { AppBottomBar(items = bottomBarItems, selectedIndex = 1) }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
             ) {
-                KpiCard("Sessions 24h", totalSessions.toString(), Modifier.weight(1f))
-                KpiCard("Joueurs 24h", totalPlayers.toString(), Modifier.weight(1f))
+                Text(text = "Chargement des statistiques...", color = DarkTextSecondary)
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+        } else if (error != null || stats == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
             ) {
-                KpiCard("Volume 24h", "${totalBetVolume / 1000}k", Modifier.weight(1f), AccentPurple)
-                KpiCard("GGR 24h", "${totalGgr / 1000}k", Modifier.weight(1f), AccentGreen)
+                Text(text = error ?: "Erreur inconnue", color = AccentRed)
             }
+        } else {
+            val data = stats!!
 
-            SectionTitle("Tendance GGR (7 jours)")
-            GgrLineChart(ggrTrend7d)
+            val coloredGames = mapGamesWithColors(data.games)
+            val totalSessions = coloredGames.sumOf { it.sessions24h }
+            val totalPlayers = coloredGames.sumOf { it.uniquePlayers24h }.coerceAtLeast(1)
+            val totalBetVolume = coloredGames.sumOf { it.betVolume24h }
+            val totalGgr = coloredGames.sumOf { it.ggr24h }
 
-            SectionTitle("Répartition du trafic")
-            TrafficShareDonut(stats = games, totalSessions = totalSessions)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    KpiCard("Sessions 24h", totalSessions.toString(), Modifier.weight(1f))
+                    KpiCard("Joueurs 24h", totalPlayers.toString(), Modifier.weight(1f))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    KpiCard("Volume 24h", "${totalBetVolume / 1000}k", Modifier.weight(1f), AccentPurple)
+                    KpiCard("GGR 24h", "${totalGgr / 1000}k", Modifier.weight(1f), AccentGreen)
+                }
 
-            SectionTitle("Performance par jeu")
-            GamePerformanceBars(games)
+                SectionTitle("Tendance GGR (7 jours)")
+                GgrLineChart(data.ggrTrend7d.map { it.ggr })
 
-            SectionTitle("Heures fortes")
-            PeakHoursTable(peakHours)
+                SectionTitle("Répartition du trafic")
+                if (totalSessions > 0) {
+                    TrafficShareDonut(stats = coloredGames, totalSessions = totalSessions)
+                }
 
-            SectionTitle("Synthèse plateforme")
-            SummaryPanel(
-                payoutRate = payout,
-                activeGames = games.size,
-                avgSessionPerPlayer = (totalSessions.toFloat() / totalPlayers.toFloat())
-            )
+                SectionTitle("Performance par jeu")
+                GamePerformanceBars(coloredGames)
 
-            Spacer(modifier = Modifier.height(8.dp))
+                SectionTitle("Heures fortes")
+                PeakHoursTable(
+                    data.peakHours.map {
+                        PeakHour(
+                            hour = it.label,
+                            sessions = it.sessions,
+                            ggr = it.ggr
+                        )
+                    }
+                )
+
+                SectionTitle("Synthèse plateforme")
+                SummaryPanel(
+                    payoutRate = data.summary.payoutRate,
+                    activeGames = data.summary.activeGames,
+                    avgSessionPerPlayer = data.summary.avgSessionPerPlayer
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
     }
 }
@@ -492,5 +500,25 @@ private fun SummaryRow(label: String, value: String, valueColor: Color) {
     ) {
         Text(text = label, fontSize = 12.sp, color = DarkTextSecondary)
         Text(text = value, fontSize = 12.sp, color = valueColor, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private fun mapGamesWithColors(games: List<GameStatDto>): List<PlatformGameStat> {
+    return games.map { game ->
+        val color = when (game.gameType) {
+            "blackjack" -> AccentBlue
+            "roulette" -> AccentGreen
+            "slot" -> AccentOrange
+            else -> DarkTextPrimary
+        }
+        PlatformGameStat(
+            name = game.name,
+            sessions24h = game.sessions24h,
+            uniquePlayers24h = game.uniquePlayers24h,
+            betVolume24h = game.betVolume24h,
+            ggr24h = game.ggr24h,
+            payoutRate = game.payoutRate,
+            color = color
+        )
     }
 }
