@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(50) NOT NULL UNIQUE,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
+  password TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_login TIMESTAMPTZ,
@@ -165,10 +165,7 @@ CREATE TABLE IF NOT EXISTS wallet_transactions (
   amount NUMERIC(12,2) NOT NULL,
   reason TEXT NOT NULL,
   reference_id UUID,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  -- jour utilisé uniquement pour le bonus journalier
-  bonus_day DATE DEFAULT CURRENT_DATE
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_wallet_user_created_at
@@ -176,10 +173,6 @@ ON wallet_transactions(user_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_wallet_reason
 ON wallet_transactions(reason);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_bonus_once_per_day
-ON wallet_transactions (user_id, bonus_day)
-WHERE reason = 'daily_bonus';
 
 -- =========================
 -- WALLET BALANCE TRIGGER
