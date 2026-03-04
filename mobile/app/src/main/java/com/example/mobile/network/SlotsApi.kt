@@ -17,27 +17,26 @@ data class SlotSpinResponse(
 )
 
 object SlotsApi {
-    private const val WS_URL = "ws://10.109.110.27:5700"
+    private const val WS_URL = "ws://10.109.110.92:5700"
 
     private var ws: WebSocket? = null
-    private var authenticated = false
-    private var pendingAuth: CompletableDeferred<Boolean>? = null
+    private var pendingOpen: CompletableDeferred<Boolean>? = null
     private var pendingSpin: CompletableDeferred<Result<SlotSpinResponse>>? = null
 
     private val listener = object : WebSocketListener() {
+        override fun onOpen(webSocket: WebSocket, response: Response) {
+            pendingOpen?.complete(true)
+        }
+
         override fun onMessage(webSocket: WebSocket, text: String) {
             val json = JSONObject(text)
             when (json.optString("type")) {
-                "AUTH_OK" -> {
-                    authenticated = true
-                    pendingAuth?.complete(true)
-                }
                 "BET_RESULT" -> {
                     val payload = json.getJSONObject("payload")
                     val resultArray = payload.getJSONArray("slotResult")
                     val reels = mutableListOf<Int>()
-                    for (i in 0 until resultArray.length()) {
-                        reels.add(resultArray.getInt(i))
+                    for (reelIndex in 0 until resultArray.length()) {
+                        reels.add(resultArray.getInt(reelIndex))
                     }
                     pendingSpin?.complete(
                         Result.success(
@@ -51,47 +50,44 @@ object SlotsApi {
                 }
                 "ERROR" -> {
                     val msg = json.optJSONObject("payload")?.optString("message") ?: "Erreur serveur"
-                    pendingAuth?.complete(false)
                     pendingSpin?.complete(Result.failure(IllegalStateException(msg)))
                 }
             }
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            authenticated = false
             ws = null
-            pendingAuth?.complete(false)
+            pendingOpen?.complete(false)
             pendingSpin?.complete(Result.failure(t))
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            authenticated = false
             ws = null
         }
     }
 
     private suspend fun ensureConnected(): Boolean {
-        if (ws != null && authenticated) return true
+        if (ws != null) return true
 
         val token = ApiClient.token ?: return false
 
         ws?.cancel()
-        authenticated = false
 
-        val request = Request.Builder().url(WS_URL).build()
+        val request = Request.Builder()
+            .url(WS_URL)
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        pendingOpen = CompletableDeferred()
         val socket = ApiClient.http.newWebSocket(request, listener)
         ws = socket
 
-        pendingAuth = CompletableDeferred()
-        val authMsg = JSONObject().apply {
-            put("type", "AUTH")
-            put("payload", JSONObject().apply { put("token", token) })
+        val opened = withTimeoutOrNull(5000) { pendingOpen?.await() } ?: false
+        pendingOpen = null
+        if (!opened) {
+            ws = null
         }
-        socket.send(authMsg.toString())
-
-        val ok = withTimeoutOrNull(5000) { pendingAuth?.await() } ?: false
-        pendingAuth = null
-        return ok
+        return opened
     }
 
     suspend fun spin(bet: Int): Result<SlotSpinResponse> {
@@ -122,6 +118,5 @@ object SlotsApi {
     fun disconnect() {
         ws?.close(1000, "bye")
         ws = null
-        authenticated = false
     }
 }
