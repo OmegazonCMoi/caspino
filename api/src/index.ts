@@ -129,7 +129,7 @@ app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "api-caspino" })
 })
 
-app.get("/stats/platform", authenticateJWT, async (req: Request, res: Response) => {
+app.get("/stats/platform", async (req: Request, res: Response) => {
   try {
     const now = new Date()
     const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
