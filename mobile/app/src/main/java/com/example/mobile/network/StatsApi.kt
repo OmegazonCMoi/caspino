@@ -40,6 +40,27 @@ data class StatsPlatformResponse(
     val summary: SummaryDto
 )
 
+data class PlayerProfileDto(
+    val username: String,
+    val profile: String,
+    val totalSessions: Int,
+    val totalWagered: Int,
+    val avgBet: Int,
+    val winRate: Int
+)
+
+data class PlayerPredictionDto(
+    val username: String,
+    val predictedWinRate: Int,
+    val estimatedSessionsNextWeek: Int,
+    val trend: String
+)
+
+data class PlayersAnalysisResponse(
+    val profiles: List<PlayerProfileDto>,
+    val predictions: List<PlayerPredictionDto>
+)
+
 object StatsApi {
 
     suspend fun fetchPlatformStats(): Result<StatsPlatformResponse> {
@@ -117,6 +138,69 @@ object StatsApi {
                             ggrTrend7d = trend,
                             peakHours = peak,
                             summary = summary
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun fetchPlayersAnalysis(): Result<PlayersAnalysisResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("${ApiClient.BASE_URL}/stats/players-analysis")
+                    .get()
+                    .build()
+
+                ApiClient.http.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(
+                            IllegalStateException("HTTP ${response.code}")
+                        )
+                    }
+
+                    val body = response.body?.string()
+                        ?: return@withContext Result.failure(IllegalStateException("Empty body"))
+
+                    val json = JSONObject(body)
+
+                    val profilesJson = json.optJSONArray("profiles") ?: JSONArray()
+                    val profiles = mutableListOf<PlayerProfileDto>()
+                    for (i in 0 until profilesJson.length()) {
+                        val p = profilesJson.getJSONObject(i)
+                        profiles.add(
+                            PlayerProfileDto(
+                                username = p.optString("username"),
+                                profile = p.optString("profile"),
+                                totalSessions = p.optInt("totalSessions"),
+                                totalWagered = p.optInt("totalWagered"),
+                                avgBet = p.optInt("avgBet"),
+                                winRate = p.optInt("winRate")
+                            )
+                        )
+                    }
+
+                    val predictionsJson = json.optJSONArray("predictions") ?: JSONArray()
+                    val predictions = mutableListOf<PlayerPredictionDto>()
+                    for (i in 0 until predictionsJson.length()) {
+                        val p = predictionsJson.getJSONObject(i)
+                        predictions.add(
+                            PlayerPredictionDto(
+                                username = p.optString("username"),
+                                predictedWinRate = p.optInt("predictedWinRate"),
+                                estimatedSessionsNextWeek = p.optInt("estimatedSessionsNextWeek"),
+                                trend = p.optString("trend")
+                            )
+                        )
+                    }
+
+                    Result.success(
+                        PlayersAnalysisResponse(
+                            profiles = profiles,
+                            predictions = predictions
                         )
                     )
                 }

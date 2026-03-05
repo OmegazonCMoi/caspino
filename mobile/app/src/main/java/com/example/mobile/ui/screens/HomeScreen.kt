@@ -26,6 +26,7 @@ import com.example.mobile.SlotMachineActivity
 import com.example.mobile.SportsBettingActivity
 import com.example.mobile.ui.components.AppBottomBar
 import com.example.mobile.ui.components.BalanceHeader
+import com.example.mobile.network.GamesApi
 import com.example.mobile.ui.components.BottomBarItem
 import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.ui.theme.DarkTextPrimary
@@ -41,15 +42,22 @@ data class GameItem(
 fun HomeScreen() {
 
     var selectedTab by remember { mutableStateOf(0) }
+    var lastPlayed by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val context = LocalContext.current
 
-    val games = listOf(
-        GameItem("Blackjack", R.drawable.joker_card, "23/12/2025"),
-        GameItem("Poker", R.drawable.heart_suit, "22/12/2025"),
-        GameItem("Roulette", R.drawable.ferris_wheel, null),
-        GameItem("Machine à sous", R.drawable.slot_machine, "20/12/2025"),
-        GameItem("Paris sportifs", R.drawable.trophy, "21/12/2025")
-    )
+    LaunchedEffect(Unit) {
+        GamesApi.fetchLastPlayed().onSuccess { lastPlayed = it }
+    }
+
+    val games = remember(lastPlayed) {
+        listOf(
+            GameItem("Blackjack", R.drawable.joker_card, lastPlayed["blackjack"]),
+            GameItem("Poker", R.drawable.heart_suit, lastPlayed["poker"]),
+            GameItem("Roulette", R.drawable.ferris_wheel, lastPlayed["roulette"]),
+            GameItem("Machine à sous", R.drawable.slot_machine, lastPlayed["slot"]),
+            GameItem("Paris sportifs", R.drawable.trophy, lastPlayed["sports"])
+        )
+    }
 
     fun navigateToGame(gameName: String) {
         val activityClass = when (gameName) {

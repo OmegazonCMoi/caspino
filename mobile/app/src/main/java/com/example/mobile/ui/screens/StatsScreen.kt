@@ -45,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
 import com.example.mobile.network.GameStatDto
+import com.example.mobile.network.PlayerProfileDto
+import com.example.mobile.network.PlayerPredictionDto
+import com.example.mobile.network.PlayersAnalysisResponse
 import com.example.mobile.network.StatsApi
 import com.example.mobile.network.StatsPlatformResponse
 import com.example.mobile.ui.components.AppBottomBar
@@ -96,6 +99,7 @@ fun StatsScreen(onBackClick: () -> Unit) {
     )
 
     var stats by remember { mutableStateOf<StatsPlatformResponse?>(null) }
+    var analysis by remember { mutableStateOf<PlayersAnalysisResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -108,6 +112,8 @@ fun StatsScreen(onBackClick: () -> Unit) {
             error = "Impossible de charger les statistiques."
             isLoading = false
         }
+
+        StatsApi.fetchPlayersAnalysis().onSuccess { analysis = it }
     }
 
     Scaffold(
@@ -185,6 +191,14 @@ fun StatsScreen(onBackClick: () -> Unit) {
                         )
                     }
                 )
+
+                if (analysis != null && analysis!!.profiles.isNotEmpty()) {
+                    SectionTitle("Profilage joueurs (IA)")
+                    PlayerProfilesTable(analysis!!.profiles)
+
+                    SectionTitle("Prédictions (régression)")
+                    PlayerPredictionsTable(analysis!!.predictions)
+                }
 
                 SectionTitle("Synthèse plateforme")
                 SummaryPanel(
@@ -500,6 +514,164 @@ private fun SummaryRow(label: String, value: String, valueColor: Color) {
     ) {
         Text(text = label, fontSize = 12.sp, color = DarkTextSecondary)
         Text(text = value, fontSize = 12.sp, color = valueColor, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun PlayerProfilesTable(profiles: List<PlayerProfileDto>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkSurface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkSurfaceVariant)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Text("Joueur", modifier = Modifier.weight(1.2f), fontSize = 11.sp, color = DarkTextTertiary)
+            Text("Profil", modifier = Modifier.weight(1f), fontSize = 11.sp, color = DarkTextTertiary)
+            Text("Mise moy.", modifier = Modifier.weight(0.8f), fontSize = 11.sp, color = DarkTextTertiary)
+            Text("Win%", modifier = Modifier.weight(0.6f), fontSize = 11.sp, color = DarkTextTertiary)
+        }
+
+        profiles.forEachIndexed { index, p ->
+            val profileColor = when (p.profile) {
+                "flambeur" -> AccentOrange
+                "malchanceux" -> AccentRed
+                else -> AccentGreen
+            }
+            val profileLabel = when (p.profile) {
+                "flambeur" -> "Flambeur"
+                "malchanceux" -> "Malchanceux"
+                else -> "Prudent"
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    p.username,
+                    modifier = Modifier.weight(1.2f),
+                    fontSize = 12.sp,
+                    color = DarkTextPrimary,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    profileLabel,
+                    modifier = Modifier.weight(1f),
+                    fontSize = 12.sp,
+                    color = profileColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "${p.avgBet}",
+                    modifier = Modifier.weight(0.8f),
+                    fontSize = 12.sp,
+                    color = DarkTextSecondary
+                )
+                Text(
+                    "${p.winRate}%",
+                    modifier = Modifier.weight(0.6f),
+                    fontSize = 12.sp,
+                    color = if (p.winRate >= 50) AccentGreen else AccentRed,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (index != profiles.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .height(0.5.dp)
+                        .background(DarkBorder)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerPredictionsTable(predictions: List<PlayerPredictionDto>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkSurface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkSurfaceVariant)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Text("Joueur", modifier = Modifier.weight(1.2f), fontSize = 11.sp, color = DarkTextTertiary)
+            Text("Win% prédit", modifier = Modifier.weight(1f), fontSize = 11.sp, color = DarkTextTertiary)
+            Text("Sessions est.", modifier = Modifier.weight(0.9f), fontSize = 11.sp, color = DarkTextTertiary)
+            Text("Tendance", modifier = Modifier.weight(0.8f), fontSize = 11.sp, color = DarkTextTertiary)
+        }
+
+        predictions.forEachIndexed { index, p ->
+            val trendSymbol = when (p.trend) {
+                "up" -> "\u2197"
+                "down" -> "\u2198"
+                else -> "\u2192"
+            }
+            val trendColor = when (p.trend) {
+                "up" -> AccentGreen
+                "down" -> AccentRed
+                else -> AccentOrange
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    p.username,
+                    modifier = Modifier.weight(1.2f),
+                    fontSize = 12.sp,
+                    color = DarkTextPrimary,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "${p.predictedWinRate}%",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 12.sp,
+                    color = AccentBlue,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "${p.estimatedSessionsNextWeek}/sem",
+                    modifier = Modifier.weight(0.9f),
+                    fontSize = 12.sp,
+                    color = DarkTextSecondary
+                )
+                Text(
+                    "$trendSymbol ${p.trend.replaceFirstChar { it.uppercase() }}",
+                    modifier = Modifier.weight(0.8f),
+                    fontSize = 12.sp,
+                    color = trendColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (index != predictions.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .height(0.5.dp)
+                        .background(DarkBorder)
+                )
+            }
+        }
     }
 }
 
