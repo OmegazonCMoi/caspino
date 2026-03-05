@@ -17,7 +17,7 @@ data class SlotSpinResponse(
 )
 
 object SlotsApi {
-    private const val WS_URL = "ws://10.7.179.162:5700"
+    private const val WS_URL = "ws://10.109.150.92:5500"
 
     private var ws: WebSocket? = null
     private var pendingSocket: WebSocket? = null
