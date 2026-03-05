@@ -15,6 +15,7 @@ import {
 
 export class BlackjackGame {
   private deck: Card[] = []
+  private reshuffled = false
   private sessions: Map<WebSocket, BlackjackSession> = new Map()
 
   constructor(private message: (ws: WebSocket, msg: any) => void) {
@@ -51,6 +52,7 @@ export class BlackjackGame {
     const totalCards = DECK_COUNT * SUITS.length * RANKS.length
     if (this.deck.length < totalCards * RESHUFFLE_THRESHOLD) {
       this.initDeck()
+      this.reshuffled = true
     }
     const card = this.deck.pop()
     if (!card) throw new Error("Deck is empty")
@@ -119,8 +121,9 @@ export class BlackjackGame {
 
     this.sessions.set(ws, session)
 
-    // Natural blackjack — resolve immediately
+    // Natural blackjack — show cards before resolving
     if (hand.status === HandStatus.BLACKJACK) {
+      this.sendGameState(ws, session)
       this.resolveGame(ws, session)
       return
     }
@@ -197,6 +200,7 @@ export class BlackjackGame {
     const value = BlackjackGame.handValue(hand.cards)
     hand.status = value > 21 ? HandStatus.BUSTED : HandStatus.STOOD
 
+    this.sendGameState(ws, session)
     this.advanceHand(ws, session)
   }
 
@@ -326,6 +330,8 @@ export class BlackjackGame {
       firstHand.cards.length === 2 &&
       session.activeHandIndex === 0
 
+    const totalCards = DECK_COUNT * SUITS.length * RANKS.length
+
     this.message(ws, {
       type: "GAME_STATE",
       payload: {
@@ -341,8 +347,13 @@ export class BlackjackGame {
         phase: session.phase,
         insuranceBet: session.insuranceBet,
         canInsure,
+        deckRemaining: this.deck.length,
+        deckTotal: totalCards,
+        reshuffled: this.reshuffled,
       },
     })
+
+    this.reshuffled = false
   }
 
   // --- Cleanup ---

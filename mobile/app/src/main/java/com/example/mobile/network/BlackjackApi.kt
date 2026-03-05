@@ -29,7 +29,10 @@ data class BlackjackGameState(
     val dealerUpCard: BlackjackCard,
     val phase: String,
     val insuranceBet: Int,
-    val canInsure: Boolean
+    val canInsure: Boolean,
+    val deckRemaining: Int,
+    val deckTotal: Int,
+    val reshuffled: Boolean
 )
 
 data class BlackjackHandResult(
@@ -131,7 +134,10 @@ object BlackjackApi {
             dealerUpCard = parseCard(dealerUpCardJson),
             phase = payload.getString("phase"),
             insuranceBet = payload.getInt("insuranceBet"),
-            canInsure = payload.getBoolean("canInsure")
+            canInsure = payload.getBoolean("canInsure"),
+            deckRemaining = payload.optInt("deckRemaining", 0),
+            deckTotal = payload.optInt("deckTotal", 312),
+            reshuffled = payload.optBoolean("reshuffled", false)
         )
     }
 

@@ -1,13 +1,9 @@
 package com.example.mobile.ui.screens
 
 import android.content.Intent
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,8 +14,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,9 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
@@ -63,7 +64,13 @@ import com.example.mobile.network.BlackjackCard
 import com.example.mobile.network.BlackjackGameState
 import com.example.mobile.network.BlackjackHand
 import com.example.mobile.network.BlackjackHandResult
+import com.example.mobile.ui.components.ConfettiOverlay
+import io.github.vinceglb.confettikit.core.Party
+import io.github.vinceglb.confettikit.core.Position
+import io.github.vinceglb.confettikit.core.emitter.Emitter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun BlackjackScreen(
@@ -76,6 +83,7 @@ fun BlackjackScreen(
     var betResult by remember { mutableStateOf<BlackjackBetResult?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
 
     val isPlaying = gameState != null && betResult == null
     val isResolved = betResult != null
@@ -108,10 +116,46 @@ fun BlackjackScreen(
             errorMessage = null
         }
         BlackjackApi.onBetResult = { result ->
-            betResult = result
-            balance = result.balance
-            isLoading = false
-            errorMessage = null
+            coroutineScope.launch {
+                delay(1500)
+                betResult = result
+                balance = result.balance
+                isLoading = false
+                errorMessage = null
+
+                val totalBet = result.hands.sumOf { hand -> hand.bet }
+                val netGain = result.gains - totalBet
+                if (netGain > 0) {
+                    val hasBlackjack = result.hands.any { hand -> hand.status == "BLACKJACK" }
+                    val hasDouble = result.hands.any { hand -> hand.bet > totalBet / result.hands.size }
+                    val isSplit = result.hands.size > 1
+                    val winningHands = result.hands.count { hand -> hand.gains > hand.bet }
+                    val losingHands = result.hands.count { hand -> hand.gains == 0 }
+
+                    val isBigWin = hasBlackjack || hasDouble || (isSplit && winningHands == result.hands.size)
+                    val isPartialWin = isSplit && winningHands > losingHands && losingHands > 0
+
+                    val durationSec = if (isBigWin) 5.0 else 2.5
+                    val particlesPerSec = if (isBigWin) 50 else 30
+
+                    if (isBigWin || isPartialWin || !isSplit) {
+                        confettiParties = listOf(
+                            Party(
+                                angle = -45, spread = 45,
+                                position = Position.Relative(0.0, 0.26),
+                                emitter = Emitter(duration = durationSec.seconds).perSecond(particlesPerSec),
+                                fadeOutEnabled = true
+                            ),
+                            Party(
+                                angle = -135, spread = 45,
+                                position = Position.Relative(1.0, 0.26),
+                                emitter = Emitter(duration = durationSec.seconds).perSecond(particlesPerSec),
+                                fadeOutEnabled = true
+                            )
+                        )
+                    }
+                }
+            }
         }
         BlackjackApi.onError = { message ->
             errorMessage = message
@@ -141,6 +185,7 @@ fun BlackjackScreen(
         gameState = null
         betResult = null
         errorMessage = null
+        confettiParties = emptyList()
     }
 
     Scaffold(
@@ -166,7 +211,7 @@ fun BlackjackScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -205,6 +250,13 @@ fun BlackjackScreen(
                 // Game in progress
                 if (isPlaying) {
                     val state = gameState!!
+
+                    // Deck info
+                    DeckIndicator(
+                        remaining = state.deckRemaining,
+                        total = state.deckTotal,
+                        reshuffled = state.reshuffled
+                    )
 
                     // Dealer section
                     DealerSection(
@@ -325,6 +377,63 @@ fun BlackjackScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
             }
+
+            ConfettiOverlay(
+                parties = confettiParties,
+                onFinished = { confettiParties = emptyList() },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeckIndicator(
+    remaining: Int,
+    total: Int,
+    reshuffled: Boolean
+) {
+    val percentage = if (total > 0) remaining.toFloat() / total else 0f
+    val barColor = when {
+        percentage < 0.3f -> AccentRed
+        percentage < 0.5f -> AccentOrange
+        else -> AccentGreen
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (reshuffled) "Pioche (remélangée)" else "Pioche",
+                fontSize = 12.sp,
+                color = if (reshuffled) AccentOrange else DarkTextTertiary
+            )
+            Text(
+                text = "$remaining / $total",
+                fontSize = 12.sp,
+                color = DarkTextTertiary
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(DarkSurface)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(percentage)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(barColor)
+            )
         }
     }
 }
@@ -414,25 +523,28 @@ private fun DealerSection(
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.horizontalScroll(rememberScrollState())
         ) {
             if (dealerFullHand != null) {
                 dealerFullHand.forEachIndexed { cardIndex, card ->
-                    AnimatedContent(
-                        targetState = card,
-                        transitionSpec = {
-                            (slideInVertically { fullHeight -> -fullHeight } + fadeIn() togetherWith
-                                    slideOutVertically { fullHeight -> fullHeight } + fadeOut())
-                                .using(SizeTransform(clip = false))
-                        },
-                        label = "dealer_card_$cardIndex"
-                    ) { targetCard ->
-                        BlackjackCardDisplay(card = targetCard)
-                    }
+                    DealAnimatedCard(
+                        card = card,
+                        dealDelayMs = cardIndex * 150L,
+                        key = "dealer_result_$cardIndex"
+                    )
                 }
             } else if (dealerUpCard != null) {
-                BlackjackCardDisplay(card = dealerUpCard)
-                BlackjackCardDisplay(card = null)
+                DealAnimatedCard(
+                    card = dealerUpCard,
+                    dealDelayMs = 0L,
+                    key = "dealer_up"
+                )
+                DealAnimatedCard(
+                    card = null,
+                    dealDelayMs = 200L,
+                    key = "dealer_hidden"
+                )
             }
         }
     }
@@ -510,20 +622,15 @@ private fun PlayerHandSection(
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.horizontalScroll(rememberScrollState())
         ) {
             hand.cards.forEachIndexed { cardIndex, card ->
-                AnimatedContent(
-                    targetState = card,
-                    transitionSpec = {
-                        (slideInVertically { fullHeight -> fullHeight } + fadeIn() togetherWith
-                                slideOutVertically { fullHeight -> -fullHeight } + fadeOut())
-                            .using(SizeTransform(clip = false))
-                    },
-                    label = "hand_${handIndex}_card_$cardIndex"
-                ) { targetCard ->
-                    BlackjackCardDisplay(card = targetCard)
-                }
+                DealAnimatedCard(
+                    card = card,
+                    dealDelayMs = cardIndex * 200L,
+                    key = "hand_${handIndex}_card_${card.suit}_${card.rank}"
+                )
             }
         }
     }
@@ -674,6 +781,58 @@ private fun cardNumericValue(card: BlackjackCard): Int {
         "K", "Q", "J" -> 10
         else -> card.rank.toIntOrNull() ?: 0
     }
+}
+
+@Composable
+private fun DealAnimatedCard(
+    card: BlackjackCard?,
+    dealDelayMs: Long,
+    key: String,
+    isSmall: Boolean = false
+) {
+    val scale = remember(key) { Animatable(0f) }
+    val offsetY = remember(key) { Animatable(-80f) }
+    val alpha = remember(key) { Animatable(0f) }
+
+    LaunchedEffect(key) {
+        delay(dealDelayMs)
+        launch {
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        }
+        launch {
+            offsetY.animateTo(
+                targetValue = 0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        }
+        launch {
+            alpha.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(stiffness = Spring.StiffnessLow)
+            )
+        }
+    }
+
+    BlackjackCardDisplay(
+        card = card,
+        isSmall = isSmall,
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+                this.alpha = alpha.value
+            }
+            .offset { IntOffset(0, offsetY.value.toInt()) }
+    )
 }
 
 @Composable
