@@ -42,9 +42,17 @@ data class BlackjackHandResult(
     val status: String
 )
 
+data class BlackjackPlayerHand(
+    val cards: List<BlackjackCard>,
+    val bet: Int,
+    val isDoubled: Boolean,
+    val value: Int
+)
+
 data class BlackjackBetResult(
     val gains: Int,
     val hands: List<BlackjackHandResult>,
+    val playerHands: List<BlackjackPlayerHand>,
     val dealerHand: List<BlackjackCard>,
     val dealerValue: Int,
     val insuranceGain: Int,
@@ -156,6 +164,25 @@ object BlackjackApi {
             )
         }
 
+        val playerHandsArray = payload.getJSONArray("playerHands")
+        val playerHands = mutableListOf<BlackjackPlayerHand>()
+        for (handIndex in 0 until playerHandsArray.length()) {
+            val handJson = playerHandsArray.getJSONObject(handIndex)
+            val cardsArray = handJson.getJSONArray("cards")
+            val cards = mutableListOf<BlackjackCard>()
+            for (cardIndex in 0 until cardsArray.length()) {
+                cards.add(parseCard(cardsArray.getJSONObject(cardIndex)))
+            }
+            playerHands.add(
+                BlackjackPlayerHand(
+                    cards = cards,
+                    bet = handJson.getInt("bet"),
+                    isDoubled = handJson.getBoolean("isDoubled"),
+                    value = handJson.getInt("value")
+                )
+            )
+        }
+
         val dealerHandArray = payload.getJSONArray("dealerHand")
         val dealerCards = mutableListOf<BlackjackCard>()
         for (cardIndex in 0 until dealerHandArray.length()) {
@@ -165,6 +192,7 @@ object BlackjackApi {
         return BlackjackBetResult(
             gains = payload.getInt("gains"),
             hands = hands,
+            playerHands = playerHands,
             dealerHand = dealerCards,
             dealerValue = payload.getInt("dealerValue"),
             insuranceGain = payload.getInt("insuranceGain"),

@@ -306,6 +306,12 @@ export class BlackjackGame {
       payload: {
         gains: result.totalGains,
         hands: result.handResults,
+        playerHands: session.hands.map((hand) => ({
+          cards: hand.cards,
+          bet: hand.bet,
+          isDoubled: hand.isDoubled,
+          value: BlackjackGame.handValue(hand.cards),
+        })),
         dealerHand: session.dealerHand,
         dealerValue: BlackjackGame.handValue(session.dealerHand),
         insuranceGain: result.insuranceGain,

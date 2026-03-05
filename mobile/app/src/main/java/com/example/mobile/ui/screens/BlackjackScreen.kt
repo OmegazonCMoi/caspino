@@ -64,6 +64,7 @@ import com.example.mobile.network.BlackjackCard
 import com.example.mobile.network.BlackjackGameState
 import com.example.mobile.network.BlackjackHand
 import com.example.mobile.network.BlackjackHandResult
+import com.example.mobile.network.BlackjackPlayerHand
 import com.example.mobile.ui.components.ConfettiOverlay
 import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
@@ -307,10 +308,12 @@ fun BlackjackScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Hand results
+                    // Player hands with cards + results
                     result.hands.forEachIndexed { handIndex, handResult ->
+                        val playerHand = result.playerHands.getOrNull(handIndex)
                         HandResultSection(
                             handResult = handResult,
+                            playerHand = playerHand,
                             handIndex = handIndex,
                             totalHands = result.hands.size
                         )
@@ -639,6 +642,7 @@ private fun PlayerHandSection(
 @Composable
 private fun HandResultSection(
     handResult: BlackjackHandResult,
+    playerHand: BlackjackPlayerHand?,
     handIndex: Int,
     totalHands: Int
 ) {
@@ -650,44 +654,76 @@ private fun HandResultSection(
         else -> DarkTextSecondary
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(DarkSurface, RoundedCornerShape(8.dp))
             .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column {
-            Text(
-                text = label,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DarkTextPrimary
-            )
-            Text(
-                text = "${handResult.playerValue} pts",
-                fontSize = 12.sp,
-                color = DarkTextSecondary
-            )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            val statusLabel = when (handResult.status) {
-                "BUSTED" -> "Bust"
-                "BLACKJACK" -> "Blackjack!"
-                else -> if (netGain > 0) "Gagné" else if (netGain < 0) "Perdu" else "Égalité"
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DarkTextPrimary
+                )
+                Text(
+                    text = "(${handResult.playerValue})",
+                    fontSize = 12.sp,
+                    color = DarkTextSecondary
+                )
+                if (playerHand?.isDoubled == true) {
+                    Text(
+                        text = "x2",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentOrange
+                    )
+                }
             }
-            Text(
-                text = statusLabel,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = resultColor
-            )
-            Text(
-                text = if (netGain >= 0) "+${handResult.gains}" else "-${handResult.bet}",
-                fontSize = 12.sp,
-                color = resultColor
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                val statusLabel = when (handResult.status) {
+                    "BUSTED" -> "Bust"
+                    "BLACKJACK" -> "Blackjack!"
+                    else -> if (netGain > 0) "Gagné" else if (netGain < 0) "Perdu" else "Égalité"
+                }
+                Text(
+                    text = statusLabel,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = resultColor
+                )
+                Text(
+                    text = if (netGain >= 0) "+${handResult.gains}" else "-${handResult.bet}",
+                    fontSize = 12.sp,
+                    color = resultColor
+                )
+            }
+        }
+
+        if (playerHand != null) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            ) {
+                playerHand.cards.forEachIndexed { cardIndex, card ->
+                    DealAnimatedCard(
+                        card = card,
+                        dealDelayMs = cardIndex * 100L,
+                        key = "result_hand_${handIndex}_${card.suit}_${card.rank}"
+                    )
+                }
+            }
         }
     }
 }
