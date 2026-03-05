@@ -20,11 +20,13 @@ object SlotsApi {
     private const val WS_URL = "ws://10.7.179.162:5700"
 
     private var ws: WebSocket? = null
+    private var pendingSocket: WebSocket? = null
     private var pendingOpen: CompletableDeferred<Boolean>? = null
     private var pendingSpin: CompletableDeferred<Result<SlotSpinResponse>>? = null
 
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            ws = webSocket
             pendingOpen?.complete(true)
         }
 
@@ -56,6 +58,7 @@ object SlotsApi {
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            pendingSocket = null
             ws = null
             pendingOpen?.complete(false)
             pendingSpin?.complete(Result.failure(t))
@@ -79,12 +82,12 @@ object SlotsApi {
             .build()
 
         pendingOpen = CompletableDeferred()
-        val socket = ApiClient.http.newWebSocket(request, listener)
-        ws = socket
+        pendingSocket = ApiClient.wsHttp.newWebSocket(request, listener)
 
         val opened = withTimeoutOrNull(5000) { pendingOpen?.await() } ?: false
         pendingOpen = null
         if (!opened) {
+            pendingSocket = null
             ws = null
         }
         return opened

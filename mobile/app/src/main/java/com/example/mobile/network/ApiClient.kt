@@ -14,6 +14,13 @@ object ApiClient {
         .writeTimeout(5, TimeUnit.SECONDS)
         .build()
 
+    val wsHttp: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.SECONDS)
+        .writeTimeout(0, TimeUnit.SECONDS)
+        .pingInterval(15, TimeUnit.SECONDS)
+        .build()
+
     var token: String? = null
 
     private lateinit var prefs: SharedPreferences

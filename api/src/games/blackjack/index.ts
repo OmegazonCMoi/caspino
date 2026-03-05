@@ -50,22 +50,26 @@ const message = async (ws: WebSocket, msg: any) => {
 
 const game = new BlackjackGame(message)
 
-wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
+wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   const decoded = authenticateWS(req)
   if (!decoded) {
     ws.close(1008, "Invalid or missing token")
     return
   }
 
-  const dbUser = await getUserById(decoded.userId as string)
-  if (!dbUser) {
-    ws.close(1008, "User not found")
-    return
-  }
+  const userPromise = getUserById(decoded.userId as string)
 
-  const userId = dbUser.id
+  userPromise.then((dbUser) => {
+    if (!dbUser) {
+      ws.close(1008, "User not found")
+    }
+  })
 
   ws.on("message", async (raw) => {
+    const dbUser = await userPromise
+    if (!dbUser) return
+
+    const userId = dbUser.id
     const msg = JSON.parse(raw.toString())
 
     try {

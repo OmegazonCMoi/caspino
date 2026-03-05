@@ -62,27 +62,32 @@ const game = new RouletteGame(broadCast, message)
 
 game.start()
 
-wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
+wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   const decoded = authenticateWS(req)
   if (!decoded) {
     ws.close(1008, "Invalid or missing token")
     return
   }
 
-  const dbUser = await getUserById(decoded.userId as string)
-  if (!dbUser) {
-    ws.close(1008, "User not found")
-    return
-  }
+  const userPromise = getUserById(decoded.userId as string)
 
-  clients.add(ws)
-  playerContexts.set(ws, {
-    userId: dbUser.id,
-    partyId: null,
-    totalBet: 0,
+  userPromise.then((dbUser) => {
+    if (!dbUser) {
+      ws.close(1008, "User not found")
+      return
+    }
+    clients.add(ws)
+    playerContexts.set(ws, {
+      userId: dbUser.id,
+      partyId: null,
+      totalBet: 0,
+    })
   })
 
   ws.on("message", async (raw) => {
+    const dbUser = await userPromise
+    if (!dbUser) return
+
     const msg = JSON.parse(raw.toString())
 
     if (msg.type === "PLACE_BET") {

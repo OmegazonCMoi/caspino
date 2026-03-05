@@ -178,7 +178,7 @@ fun SlotMachineScreen(
         val stepsReel3 = 50
 
         // Animation aléatoire pendant que l'API répond
-        for (i in 0 until stepsReel1 - 1) {
+        for (animationStep in 0 until stepsReel1 - 1) {
             reel1 = Random.nextInt(symbolDrawables.size)
             reel2 = Random.nextInt(symbolDrawables.size)
             reel3 = Random.nextInt(symbolDrawables.size)
@@ -196,7 +196,7 @@ fun SlotMachineScreen(
         reel1 = target1
         try { spinStopMediaPlayer.seekTo(0); spinStopMediaPlayer.start() } catch (_: Exception) { }
 
-        for (i in stepsReel1 until stepsReel2 - 1) {
+        for (animationStep in stepsReel1 until stepsReel2 - 1) {
             reel2 = Random.nextInt(symbolDrawables.size)
             reel3 = Random.nextInt(symbolDrawables.size)
             delay(stepDelay)
@@ -205,7 +205,7 @@ fun SlotMachineScreen(
         reel2 = target2
         try { spinStopMediaPlayer.seekTo(0); spinStopMediaPlayer.start() } catch (_: Exception) { }
 
-        for (i in stepsReel2 until stepsReel3 - 1) {
+        for (animationStep in stepsReel2 until stepsReel3 - 1) {
             reel3 = Random.nextInt(symbolDrawables.size)
             delay(stepDelay)
         }
