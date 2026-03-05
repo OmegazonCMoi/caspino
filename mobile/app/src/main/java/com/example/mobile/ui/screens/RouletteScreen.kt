@@ -48,6 +48,7 @@ import com.example.mobile.ui.components.BottomBarItem
 import com.example.mobile.ui.components.ButtonSize
 import com.example.mobile.ui.components.ButtonVariant
 import com.example.mobile.ui.components.CardVariant
+import com.example.mobile.ui.components.CroupierPunchlineBanner
 import com.example.mobile.ui.components.RouletteWheel
 import com.example.mobile.ui.components.SpinCommand
 import com.example.mobile.ui.components.ConfettiOverlay
@@ -58,6 +59,9 @@ import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
 import androidx.compose.ui.platform.LocalContext
 import com.example.mobile.ui.icons.AppIcons
+import com.example.mobile.network.PunchlineApi
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
@@ -80,8 +84,17 @@ fun RouletteScreen(
     var selectedGroups by remember { mutableStateOf(setOf<String>()) }
     var isBettingPhase by remember { mutableStateOf(true) }
     var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
+    var punchline by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        scope.launch {
+            PunchlineApi.fetchPunchline("roulette")
+                .onSuccess { punchline = it }
+        }
+    }
 
     val bottomBarItems = listOf(
         BottomBarItem(
@@ -159,6 +172,10 @@ fun RouletteScreen(
                         .padding(top = 8.dp)
                         .align(Alignment.Start)
                 )
+
+                if (punchline != null) {
+                    CroupierPunchlineBanner(punchline!!)
+                }
 
                 Spacer(modifier = Modifier.height(2.dp))
 

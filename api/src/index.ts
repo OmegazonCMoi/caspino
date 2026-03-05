@@ -3,6 +3,7 @@ import bodyParser from "body-parser"
 import bcrypt from "bcrypt"
 import crypto from "crypto"
 import jwt from "jsonwebtoken"
+import OpenAI from "openai"
 import "dotenv/config"
 import {
   getUserByUsername,
@@ -186,6 +187,52 @@ app.post(
 
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "api-caspino" })
+})
+
+const bastetenClient = new OpenAI({
+  apiKey: process.env.BASETEN_API_KEY,
+  baseURL: "https://inference.baseten.co/v1",
+})
+
+app.get("/ai/punchline", async (req: Request, res: Response) => {
+  const game = req.query.game as string | undefined
+
+  if (!game || !["blackjack", "roulette"].includes(game)) {
+    return res
+      .status(400)
+      .json({ message: "Query param 'game' must be 'blackjack' or 'roulette'" })
+  }
+
+  const systemPrompt =
+    game === "blackjack"
+      ? "Tu es un croupier de blackjack charismatique et drôle dans un casino en ligne appelé Caspino. Tu balances des punchlines courtes, percutantes et stylées sur le blackjack. Garde un ton fun, un peu provocateur mais toujours classe. Réponds UNIQUEMENT avec la punchline, sans guillemets, sans explication, une seule phrase."
+      : "Tu es un croupier de roulette charismatique et drôle dans un casino en ligne appelé Caspino. Tu balances des punchlines courtes, percutantes et stylées sur la roulette. Garde un ton fun, un peu provocateur mais toujours classe. Réponds UNIQUEMENT avec la punchline, sans guillemets, sans explication, une seule phrase."
+
+  try {
+    const response = await bastetenClient.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: "Balance une punchline de croupier !" },
+      ],
+      max_tokens: 100,
+      temperature: 1.2,
+    })
+
+    const punchline =
+      response.choices?.[0]?.message?.content?.trim() ?? "Faites vos jeux !"
+
+    res.status(200).json({ punchline, game })
+  } catch (error) {
+    console.error("Baseten AI error:", error)
+    res.status(200).json({
+      punchline:
+        game === "blackjack"
+          ? "21, le chiffre magique... ou pas."
+          : "Rien ne va plus, les jeux sont faits !",
+      game,
+    })
+  }
 })
 
 app.get("/stats/platform", async (req: Request, res: Response) => {
