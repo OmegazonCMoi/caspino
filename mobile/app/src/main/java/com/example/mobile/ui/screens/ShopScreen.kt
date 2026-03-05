@@ -17,7 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,7 +45,12 @@ import com.example.mobile.ui.theme.DarkBackground
 import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 
 data class PinosOffer(
     val label: String,
@@ -60,6 +67,28 @@ fun ShopScreen(
     var balance by BalanceState.balance
     val coroutineScope = rememberCoroutineScope()
     var isClaiming by remember { mutableStateOf(false) }
+    var isLoadingClaimStatus by remember { mutableStateOf(true) }
+    var secondsUntilMidnight by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(Unit) {
+        AccountState.refreshFromServer()
+        isLoadingClaimStatus = false
+    }
+
+    LaunchedEffect(BalanceState.hasClaimedFreeTodayState) {
+        if (BalanceState.hasClaimedFreeToday()) {
+            while (true) {
+                val now = LocalDateTime.now()
+                val midnight = LocalDateTime.of(LocalDate.now().plusDays(1), LocalTime.MIDNIGHT)
+                secondsUntilMidnight = Duration.between(now, midnight).seconds
+                if (secondsUntilMidnight <= 0) {
+                    BalanceState.resetDailyClaim()
+                    break
+                }
+                delay(1000L)
+            }
+        }
+    }
 
     val freeOffer = PinosOffer(
         label = "Starter",
@@ -116,7 +145,9 @@ fun ShopScreen(
                 val hasClaimedFree = BalanceState.hasClaimedFreeToday()
                 PinosOfferCardFull(
                     offer = freeOffer,
-                    enabled = !hasClaimedFree && !isClaiming,
+                    enabled = !hasClaimedFree && !isClaiming && !isLoadingClaimStatus,
+                    secondsUntilReset = if (hasClaimedFree) secondsUntilMidnight else 0L,
+                    isLoading = isLoadingClaimStatus,
                     onBuyClick = {
                         if (!BalanceState.hasClaimedFreeToday() && !isClaiming) {
                             coroutineScope.launch {
@@ -171,6 +202,8 @@ fun ShopScreen(
 private fun PinosOfferCardFull(
     offer: PinosOffer,
     enabled: Boolean,
+    secondsUntilReset: Long,
+    isLoading: Boolean,
     onBuyClick: () -> Unit
 ) {
     Row(
@@ -207,9 +240,24 @@ private fun PinosOfferCardFull(
                 fontSize = 15.sp,
                 color = DarkTextSecondary
             )
+            if (!enabled && secondsUntilReset > 0) {
+                val hours = secondsUntilReset / 3600
+                val minutes = (secondsUntilReset % 3600) / 60
+                val seconds = secondsUntilReset % 60
+                Text(
+                    text = "Dispo dans ${hours}h ${minutes}m ${seconds}s",
+                    fontSize = 12.sp,
+                    color = DarkTextSecondary
+                )
+            }
+        }
+        val buttonText = when {
+            isLoading -> "..."
+            enabled -> offer.priceDisplay
+            else -> "Déjà récupéré"
         }
         AppButton(
-            text = if (enabled) offer.priceDisplay else "Déjà récupéré",
+            text = buttonText,
             onClick = onBuyClick,
             variant = ButtonVariant.Primary,
             size = ButtonSize.Medium,

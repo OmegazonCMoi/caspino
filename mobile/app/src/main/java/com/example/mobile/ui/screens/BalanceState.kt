@@ -32,5 +32,10 @@ object BalanceState {
         lastFreeClaimDate = LocalDate.now()
         hasClaimedFreeTodayState = true
     }
+
+    fun resetDailyClaim() {
+        lastFreeClaimDate = null
+        hasClaimedFreeTodayState = false
+    }
 }
 
