@@ -355,7 +355,7 @@ fun SlotMachineScreen(
             if (lastResultDelta != null && !isSpinning) {
                 val gain = lastResultDelta!!
                 val gainColor = when {
-                    gain == 0 -> Color(0xFFEF4444)
+                    gain <= 0 -> Color(0xFFEF4444)
                     gain < bet -> Color(0xFFF59E0B)
                     else -> Color(0xFF22C55E)
                 }
