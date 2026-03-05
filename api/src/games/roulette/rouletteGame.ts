@@ -7,6 +7,7 @@ export class RouletteGame {
   private phase: RoulettePhase = RoulettePhase.BETTING
   private phaseEndsAt = 0
   private bets: Map<WebSocket, Bet[]> = new Map()
+  private lastWinningNumber: number | null = null
 
   constructor(
     private broadcast: (msg: any) => void,
@@ -58,6 +59,7 @@ export class RouletteGame {
   private async resolveGame() {
     console.log(">>> resolveGame: bets count =", this.bets.size)
     const roulettteRandomResult = Math.floor(Math.random() * 37)
+    this.lastWinningNumber = roulettteRandomResult
 
     // Broadcast winning number to ALL clients (so everyone sees the wheel spin)
     this.broadcast({
@@ -82,11 +84,18 @@ export class RouletteGame {
   getCurrentPhase() {
     return {
       type: "PHASE_UPDATE" as const,
-      payload: { phase: this.phase, endsAt: this.phaseEndsAt },
+      payload: {
+        phase: this.phase,
+        endsAt: this.phaseEndsAt,
+        ...(this.lastWinningNumber !== null && this.phase !== RoulettePhase.BETTING
+          ? { winningNumber: this.lastWinningNumber }
+          : {}),
+      },
     }
   }
 
   private reset() {
     this.bets = new Map()
+    this.lastWinningNumber = null
   }
 }

@@ -182,6 +182,10 @@ fun RouletteScreen(
     var betsSentThisRound by remember { mutableStateOf(false) }
     var totalBetSentThisRound by remember { mutableIntStateOf(0) }
 
+    // Pending bet result to apply after wheel stops
+    data class PendingBetResult(val gains: Int, val balance: Int)
+    var pendingBetResult by remember { mutableStateOf<PendingBetResult?>(null) }
+
     // Server sync state
     var serverPhase by remember { mutableStateOf("BETTING") }
     var phaseEndsAt by remember { mutableLongStateOf(0L) }
@@ -357,12 +361,19 @@ fun RouletteScreen(
                         lastPayout = 0
                         betsSentThisRound = false
                         wheelFinished = false
+                        pendingBetResult = null
                         numberBets = emptyMap()
                         groupBets = emptyMap()
                         multiBets = emptyMap()
                     }
-                    "SPINNING" -> {
-                        // Auto-send handled by LaunchedEffect(serverPhase)
+                    "SPINNING", "RESULT" -> {
+                        // If joining mid-round, trigger wheel spin with the winning number
+                        val number = update.winningNumber
+                        if (number != null && winningNumber == null) {
+                            winningNumber = number
+                            spinCommandId++
+                            currentSpinCommand = SpinCommand(id = spinCommandId, number = number)
+                        }
                     }
                 }
             }
@@ -377,34 +388,10 @@ fun RouletteScreen(
             }
         }
 
-        // Individual gains for players who bet
+        // Individual gains for players who bet — store pending, apply after wheel stops
         RouletteApi.onBetResult = { result ->
             scope.launch {
-                lastPayout = result.gains
-
-                // Sync balance from server
-                BalanceState.setBalance(result.balance)
-                ApiClient.saveBalance(result.balance)
-
-                // Confetti + sound only when gains >= 2x total bet
-                if (result.gains >= 2 * totalBetSentThisRound && totalBetSentThisRound > 0) {
-                    val durationSec = 3.0
-                    confettiParties = listOf(
-                        Party(
-                            angle = -45, spread = 45,
-                            position = Position.Relative(0.0, 0.26),
-                            emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                            fadeOutEnabled = true
-                        ),
-                        Party(
-                            angle = -135, spread = 45,
-                            position = Position.Relative(1.0, 0.26),
-                            emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                            fadeOutEnabled = true
-                        )
-                    )
-                    try { confettiMediaPlayer.seekTo(0); confettiMediaPlayer.start() } catch (_: Exception) { }
-                }
+                pendingBetResult = PendingBetResult(gains = result.gains, balance = result.balance)
             }
         }
 
@@ -449,6 +436,40 @@ fun RouletteScreen(
         if (serverPhase == "SPINNING" && !betsSentThisRound && totalBet > 0) {
             sendBetsToServer()
         }
+    }
+
+    // Apply pending bet result only after the wheel animation finishes
+    LaunchedEffect(wheelFinished, pendingBetResult) {
+        val pending = pendingBetResult ?: return@LaunchedEffect
+        if (!wheelFinished) return@LaunchedEffect
+
+        lastPayout = pending.gains
+
+        // Sync balance from server
+        BalanceState.setBalance(pending.balance)
+        ApiClient.saveBalance(pending.balance)
+
+        // Confetti + sound only when gains >= 2x total bet
+        if (pending.gains >= 2 * totalBetSentThisRound && totalBetSentThisRound > 0) {
+            val durationSec = 3.0
+            confettiParties = listOf(
+                Party(
+                    angle = -45, spread = 45,
+                    position = Position.Relative(0.0, 0.26),
+                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                    fadeOutEnabled = true
+                ),
+                Party(
+                    angle = -135, spread = 45,
+                    position = Position.Relative(1.0, 0.26),
+                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                    fadeOutEnabled = true
+                )
+            )
+            try { confettiMediaPlayer.seekTo(0); confettiMediaPlayer.start() } catch (_: Exception) { }
+        }
+
+        pendingBetResult = null
     }
 
     val isBetting = serverPhase == "BETTING"
@@ -858,6 +879,9 @@ fun RouletteScreen(
                                         }
                                     }
 
+                                }
+
+                                if (isResult) {
                                     Text(
                                         text = "Prochaine manche dans ${timeLeftSec}s",
                                         fontSize = 13.sp,

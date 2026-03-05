@@ -13,7 +13,8 @@ import org.json.JSONObject
 
 data class RoulettePhaseUpdate(
     val phase: String,
-    val endsAt: Long
+    val endsAt: Long,
+    val winningNumber: Int? = null
 )
 
 data class RouletteBetResult(
@@ -48,7 +49,8 @@ object RouletteApi {
                         onPhaseUpdate?.invoke(
                             RoulettePhaseUpdate(
                                 phase = payload.getString("phase"),
-                                endsAt = payload.getLong("endsAt")
+                                endsAt = payload.getLong("endsAt"),
+                                winningNumber = if (payload.has("winningNumber")) payload.getInt("winningNumber") else null
                             )
                         )
                     }
