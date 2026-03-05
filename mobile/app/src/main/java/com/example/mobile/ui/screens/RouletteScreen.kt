@@ -1,11 +1,9 @@
 package com.example.mobile.ui.screens
 
 import android.content.Intent
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -182,7 +181,6 @@ private fun multiBetMultiplier(count: Int): Int = when (count) {
     else -> 0
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RouletteScreen(
     onBackClick: () -> Unit
@@ -202,6 +200,7 @@ fun RouletteScreen(
     var groupBets by remember { mutableStateOf(mapOf<String, Int>()) }
     var multiBets by remember { mutableStateOf(mapOf<String, Int>()) }
     var selectedChipValue by remember { mutableIntStateOf(10) }
+    var isEraserMode by remember { mutableStateOf(false) }
 
     val totalBet = numberBets.values.sum() + groupBets.values.sum() + multiBets.values.sum()
 
@@ -289,12 +288,20 @@ fun RouletteScreen(
         multiBets = emptyMap()
     }
 
-    fun handleGridTap(numbers: List<Int>, isRemove: Boolean) {
-        if (numbers.size == 1) {
-            if (isRemove) removeNumberBet(numbers[0]) else addNumberBet(numbers[0])
+    fun handleGridTap(numbers: List<Int>) {
+        if (isEraserMode) {
+            if (numbers.size == 1) removeNumberBet(numbers[0]) else removeMultiBet(numbers)
         } else {
-            if (isRemove) removeMultiBet(numbers) else addMultiBet(numbers)
+            if (numbers.size == 1) addNumberBet(numbers[0]) else addMultiBet(numbers)
         }
+    }
+
+    fun handleNumberTap(number: Int) {
+        if (isEraserMode) removeNumberBet(number) else addNumberBet(number)
+    }
+
+    fun handleGroupTap(groupId: String) {
+        if (isEraserMode) removeGroupBet(groupId) else addGroupBet(groupId)
     }
 
     fun requestSpin(forcedNumber: Int? = null) {
@@ -362,255 +369,262 @@ fun RouletteScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "Placez vos mises",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
-                            )
-
-                            Text(
-                                text = "Tap: placer  /  Appui long: retirer",
-                                fontSize = 11.sp,
-                                color = Color(0xFF888888)
-                            )
-
-                            // Zero cell (separate)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(36.dp)
-                                    .border(1.dp, Color(0xFF2E7D32), RoundedCornerShape(4.dp, 4.dp, 0.dp, 0.dp))
-                                    .background(Color(0xFF1B5E20), RoundedCornerShape(4.dp, 4.dp, 0.dp, 0.dp))
-                                    .combinedClickable(
-                                        onClick = { addNumberBet(0) },
-                                        onLongClick = { removeNumberBet(0) }
-                                    ),
-                                contentAlignment = Alignment.Center
+                            // Table + chip toolbar side by side
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("0", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                val betOnZero = numberBets[0]
-                                if (betOnZero != null && betOnZero > 0) {
-                                    BetBadge(amount = betOnZero, modifier = Modifier.align(Alignment.TopEnd))
-                                }
-                            }
-
-                            // Main 12x3 grid with touch detection
-                            val cellHeightDp = 36.dp
-                            val badgeSizeDp = 24.dp
-                            val badgeRadiusPx = with(density) { 12.dp.toPx() }
-
-                            BoxWithConstraints(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(cellHeightDp * 12)
-                                    .pointerInput(Unit) {
-                                        val cellWidthPx = size.width / 3f
-                                        val cellHeightPx = size.height / 12f
-                                        detectTapGestures(
-                                            onTap = { offset ->
-                                                val target = determineBetTarget(
-                                                    offset.x, offset.y, cellWidthPx, cellHeightPx
-                                                )
-                                                handleGridTap(target, isRemove = false)
-                                            },
-                                            onLongPress = { offset ->
-                                                val target = determineBetTarget(
-                                                    offset.x, offset.y, cellWidthPx, cellHeightPx
-                                                )
-                                                handleGridTap(target, isRemove = true)
-                                            }
-                                        )
+                                // Left: roulette table
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                ) {
+                                    // Zero cell
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(36.dp)
+                                            .border(1.dp, Color(0xFF2E7D32), RoundedCornerShape(4.dp, 4.dp, 0.dp, 0.dp))
+                                            .background(Color(0xFF1B5E20), RoundedCornerShape(4.dp, 4.dp, 0.dp, 0.dp))
+                                            .clickable { handleNumberTap(0) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("0", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        val betOnZero = numberBets[0]
+                                        if (betOnZero != null && betOnZero > 0) {
+                                            BetBadge(amount = betOnZero)
+                                        }
                                     }
-                            ) {
-                                val gridWidthPx = constraints.maxWidth.toFloat()
-                                val gridHeightPx = constraints.maxHeight.toFloat()
-                                val cellWidthPx = gridWidthPx / 3f
-                                val cellHeightPx = gridHeightPx / 12f
 
-                                // Draw grid cells
-                                Column(modifier = Modifier.fillMaxSize()) {
-                                    repeat(12) { rowIndex ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(cellHeightDp)
-                                        ) {
-                                            repeat(3) { colIndex ->
-                                                val number = rowIndex * 3 + colIndex + 1
-                                                val isRed = isRouletteRed(number)
-                                                val baseColor = if (isRed) Color(0xFFB71C1C) else Color(0xFF212121)
-                                                val borderColor = if (isRed) Color(0xFF8B0000) else Color(0xFF444444)
+                                    // Main 12x3 grid with touch detection
+                                    val cellHeightDp = 36.dp
+                                    val badgeSizeDp = 24.dp
+                                    val badgeRadiusPx = with(density) { 12.dp.toPx() }
 
-                                                Box(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .fillMaxHeight()
-                                                        .border(0.5.dp, borderColor)
-                                                        .background(baseColor),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = number.toString(),
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = Color.White
-                                                    )
-                                                    val betAmount = numberBets[number]
-                                                    if (betAmount != null && betAmount > 0) {
-                                                        BetBadge(
-                                                            amount = betAmount,
-                                                            modifier = Modifier.align(Alignment.TopEnd)
+                                    BoxWithConstraints(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(cellHeightDp * 12)
+                                            .pointerInput(Unit) {
+                                                val cellWidthPx = size.width / 3f
+                                                val cellHeightPx = size.height / 12f
+                                                detectTapGestures(
+                                                    onTap = { offset ->
+                                                        val target = determineBetTarget(
+                                                            offset.x, offset.y, cellWidthPx, cellHeightPx
                                                         )
+                                                        handleGridTap(target)
                                                     }
+                                                )
+                                            }
+                                    ) {
+                                        val gridWidthPx = constraints.maxWidth.toFloat()
+                                        val gridHeightPx = constraints.maxHeight.toFloat()
+                                        val cellWidthPx = gridWidthPx / 3f
+                                        val cellHeightPx = gridHeightPx / 12f
+
+                                        // Draw grid cells
+                                        Column(modifier = Modifier.fillMaxSize()) {
+                                            repeat(12) { rowIndex ->
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(cellHeightDp)
+                                                ) {
+                                                    repeat(3) { colIndex ->
+                                                        val number = rowIndex * 3 + colIndex + 1
+                                                        val isRed = isRouletteRed(number)
+                                                        val baseColor = if (isRed) Color(0xFFB71C1C) else Color(0xFF212121)
+                                                        val borderColor = if (isRed) Color(0xFF8B0000) else Color(0xFF444444)
+
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .fillMaxHeight()
+                                                                .border(0.5.dp, borderColor)
+                                                                .background(baseColor),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(
+                                                                text = number.toString(),
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = Color.White
+                                                            )
+                                                            val betAmount = numberBets[number]
+                                                            if (betAmount != null && betAmount > 0) {
+                                                                BetBadge(amount = betAmount)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Multi-bet overlay badges
+                                        multiBets.forEach { (key, amount) ->
+                                            val numbers = key.split("_").map { it.toInt() }
+                                            val (centerX, centerY) = multiBetCenterPx(
+                                                numbers, cellWidthPx, cellHeightPx
+                                            )
+                                            val badgeOffsetX = with(density) { (centerX - badgeRadiusPx).toDp() }
+                                            val badgeOffsetY = with(density) { (centerY - badgeRadiusPx).toDp() }
+                                            Box(
+                                                modifier = Modifier
+                                                    .offset(x = badgeOffsetX, y = badgeOffsetY)
+                                                    .size(badgeSizeDp)
+                                                    .background(Color(0xFFFF9800), CircleShape)
+                                                    .border(1.5.dp, Color.White, CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = amount.toString(),
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Dozens
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        listOf(
+                                            "D_1ere 12" to "1ere 12",
+                                            "D_2eme 12" to "2eme 12",
+                                            "D_3eme 12" to "3eme 12"
+                                        ).forEach { (groupId, label) ->
+                                            val betAmount = groupBets[groupId]
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(34.dp)
+                                                    .border(0.5.dp, Color(0xFF37474F))
+                                                    .background(Color(0xFF263238))
+                                                    .clickable { handleGroupTap(groupId) },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                                                if (betAmount != null && betAmount > 0) {
+                                                    BetBadge(amount = betAmount)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Special bets
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        listOf(
+                                            "LOW" to "1-18",
+                                            "PAIR" to "Pair",
+                                            "RED" to "Rouge",
+                                            "BLACK" to "Noir",
+                                            "IMPAIR" to "Impair",
+                                            "HIGH" to "19-36"
+                                        ).forEach { (groupId, label) ->
+                                            val baseColor = when (groupId) {
+                                                "RED" -> Color(0xFFB71C1C)
+                                                "BLACK" -> Color(0xFF212121)
+                                                else -> Color(0xFF263238)
+                                            }
+                                            val borderColor = when (groupId) {
+                                                "RED" -> Color(0xFF8B0000)
+                                                "BLACK" -> Color(0xFF444444)
+                                                else -> Color(0xFF37474F)
+                                            }
+                                            val betAmount = groupBets[groupId]
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(34.dp)
+                                                    .border(0.5.dp, borderColor)
+                                                    .background(baseColor)
+                                                    .clickable { handleGroupTap(groupId) },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(label, fontSize = 9.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                                                if (betAmount != null && betAmount > 0) {
+                                                    BetBadge(amount = betAmount)
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                // Multi-bet overlay badges
-                                multiBets.forEach { (key, amount) ->
-                                    val numbers = key.split("_").map { it.toInt() }
-                                    val (centerX, centerY) = multiBetCenterPx(
-                                        numbers, cellWidthPx, cellHeightPx
-                                    )
-                                    val offsetX = with(density) { (centerX - badgeRadiusPx).toDp() }
-                                    val offsetY = with(density) { (centerY - badgeRadiusPx).toDp() }
+                                // Right: chip toolbar (vertical)
+                                Column(
+                                    modifier = Modifier
+                                        .padding(top = 36.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    // Eraser tool
+                                    val eraserSelected = isEraserMode
                                     Box(
                                         modifier = Modifier
-                                            .offset(x = offsetX, y = offsetY)
-                                            .size(badgeSizeDp)
-                                            .background(Color(0xFFFF9800), CircleShape)
-                                            .border(1.5.dp, Color.White, CircleShape),
+                                            .size(40.dp)
+                                            .border(
+                                                if (eraserSelected) 3.dp else 1.dp,
+                                                if (eraserSelected) Color.White else Color(0xFF666666),
+                                                CircleShape
+                                            )
+                                            .background(
+                                                if (eraserSelected) Color(0xFFE53935) else Color(0xFF424242),
+                                                CircleShape
+                                            )
+                                            .clickable {
+                                                isEraserMode = !isEraserMode
+                                            },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = amount.toString(),
-                                            fontSize = 8.sp,
+                                            text = "X",
+                                            fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
                                         )
                                     }
-                                }
-                            }
 
-                            // Dozens
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                listOf(
-                                    "D_1ere 12" to "1ere 12",
-                                    "D_2eme 12" to "2eme 12",
-                                    "D_3eme 12" to "3eme 12"
-                                ).forEach { (groupId, label) ->
-                                    val betAmount = groupBets[groupId]
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(36.dp)
-                                            .border(1.dp, Color(0xFF37474F), RoundedCornerShape(4.dp))
-                                            .background(Color(0xFF263238), RoundedCornerShape(4.dp))
-                                            .combinedClickable(
-                                                onClick = { addGroupBet(groupId) },
-                                                onLongClick = { removeGroupBet(groupId) }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                                        if (betAmount != null && betAmount > 0) {
-                                            BetBadge(amount = betAmount, modifier = Modifier.align(Alignment.TopEnd))
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    // Chip denominations
+                                    chipDenominations.forEach { denomination ->
+                                        val isSelected = !isEraserMode && selectedChipValue == denomination
+                                        val color = chipColor(denomination)
+                                        val chipSize = if (isSelected) 44.dp else 38.dp
+                                        val borderWidth = if (isSelected) 3.dp else 1.dp
+                                        val borderCol = if (isSelected) Color.White else color.copy(alpha = 0.5f)
+
+                                        Box(
+                                            modifier = Modifier
+                                                .size(chipSize)
+                                                .border(borderWidth, borderCol, CircleShape)
+                                                .background(color, CircleShape)
+                                                .clickable {
+                                                    selectedChipValue = denomination
+                                                    isEraserMode = false
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = denomination.toString(),
+                                                fontSize = if (isSelected) 12.sp else 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
                                         }
                                     }
                                 }
                             }
 
-                            // Special bets
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                listOf(
-                                    "LOW" to "1-18",
-                                    "PAIR" to "Pair",
-                                    "RED" to "Rouge",
-                                    "BLACK" to "Noir",
-                                    "IMPAIR" to "Impair",
-                                    "HIGH" to "19-36"
-                                ).forEach { (groupId, label) ->
-                                    val baseColor = when (groupId) {
-                                        "RED" -> Color(0xFFB71C1C)
-                                        "BLACK" -> Color(0xFF212121)
-                                        else -> Color(0xFF263238)
-                                    }
-                                    val borderColor = when (groupId) {
-                                        "RED" -> Color(0xFF8B0000)
-                                        "BLACK" -> Color(0xFF444444)
-                                        else -> Color(0xFF37474F)
-                                    }
-                                    val betAmount = groupBets[groupId]
-
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(36.dp)
-                                            .border(1.dp, borderColor, RoundedCornerShape(4.dp))
-                                            .background(baseColor, RoundedCornerShape(4.dp))
-                                            .combinedClickable(
-                                                onClick = { addGroupBet(groupId) },
-                                                onLongClick = { removeGroupBet(groupId) }
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                                        if (betAmount != null && betAmount > 0) {
-                                            BetBadge(amount = betAmount, modifier = Modifier.align(Alignment.TopEnd))
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Chip selector
-                            Text(
-                                text = "Jeton : $selectedChipValue",
-                                fontSize = 13.sp,
-                                color = Color(0xFFB0B0B0)
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                            ) {
-                                chipDenominations.forEach { denomination ->
-                                    val isSelected = selectedChipValue == denomination
-                                    val color = chipColor(denomination)
-                                    val chipSize = if (isSelected) 48.dp else 40.dp
-                                    val borderWidth = if (isSelected) 3.dp else 1.dp
-                                    val borderCol = if (isSelected) Color.White else color.copy(alpha = 0.5f)
-
-                                    Box(
-                                        modifier = Modifier
-                                            .size(chipSize)
-                                            .border(borderWidth, borderCol, CircleShape)
-                                            .background(color, CircleShape)
-                                            .clickable { selectedChipValue = denomination },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = denomination.toString(),
-                                            fontSize = if (isSelected) 13.sp else 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
+                            // Total bet + action buttons below
                             if (totalBet > 0) {
                                 Text(
                                     text = "Mise totale : $totalBet",
@@ -620,14 +634,13 @@ fun RouletteScreen(
                                 )
                             }
 
-                            // Action buttons
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 if (totalBet > 0) {
                                     AppButton(
-                                        text = "Effacer",
+                                        text = "Effacer tout",
                                         onClick = { clearAllBets() },
                                         variant = ButtonVariant.Secondary,
                                         size = ButtonSize.Medium,
