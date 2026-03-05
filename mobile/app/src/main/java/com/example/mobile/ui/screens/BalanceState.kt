@@ -23,6 +23,10 @@ object BalanceState {
         balance.intValue += amount
     }
 
+    fun setBalance(value: Int) {
+        balance.intValue = value
+    }
+
     fun hasClaimedFreeToday(): Boolean {
         val today = LocalDate.now()
         return hasClaimedFreeTodayState || lastFreeClaimDate == today

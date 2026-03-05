@@ -82,6 +82,9 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       partyId: null,
       totalBet: 0,
     })
+
+    // Send current phase so mid-round joiners know where we are
+    send(ws, game.getCurrentPhase())
   })
 
   ws.on("message", async (raw) => {

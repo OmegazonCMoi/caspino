@@ -59,15 +59,23 @@ export class RouletteGame {
     const roulettteRandomResult = Math.floor(Math.random() * 37)
 
     await Promise.all(
-      Array.from(this.bets.entries()).map(async ([ws, bets]) => {
-        const gains = await calculateGains(roulettteRandomResult, bets)
-        playeEffect(gains, bet)
+      Array.from(this.bets.entries()).map(async ([ws, playerBets]) => {
+        const gains = await calculateGains(roulettteRandomResult, playerBets)
+        const totalBet = playerBets.reduce((sum, singleBet) => sum + singleBet.amount, 0)
+        playeEffect(gains, totalBet)
         this.message(ws, {
           type: "BET_RESULT",
           payload: { gains, roulettteRandomResult },
         })
       }),
     )
+  }
+
+  getCurrentPhase() {
+    return {
+      type: "PHASE_UPDATE" as const,
+      payload: { phase: this.phase, endsAt: this.phaseEndsAt },
+    }
   }
 
   private reset() {
