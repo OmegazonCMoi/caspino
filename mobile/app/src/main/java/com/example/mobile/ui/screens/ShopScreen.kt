@@ -18,6 +18,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.R
+import com.example.mobile.network.AlreadyClaimedException
+import com.example.mobile.network.AuthApi
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BalanceHeader
@@ -37,6 +42,7 @@ import com.example.mobile.ui.theme.DarkBackground
 import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import kotlinx.coroutines.launch
 
 data class PinosOffer(
     val label: String,
@@ -51,7 +57,8 @@ fun ShopScreen(
     onBackClick: () -> Unit
 ) {
     var balance by BalanceState.balance
-    var hasClaimedFreeToday by BalanceState.hasClaimedFreeTodayState
+    val coroutineScope = rememberCoroutineScope()
+    var isClaiming by remember { mutableStateOf(false) }
 
     val freeOffer = PinosOffer(
         label = "Starter",
@@ -104,15 +111,26 @@ fun ShopScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Offre gratuite : une seule récup par jour (state pour recomposition)
+                // Offre gratuite : une seule récup par jour (appel API)
                 val hasClaimedFree = BalanceState.hasClaimedFreeToday()
                 PinosOfferCardFull(
                     offer = freeOffer,
-                    enabled = !hasClaimedFree,
+                    enabled = !hasClaimedFree && !isClaiming,
                     onBuyClick = {
-                        if (!BalanceState.hasClaimedFreeToday()) {
-                            BalanceState.addPinos(freeOffer.pinos)
-                            BalanceState.markFreeClaimedToday()
+                        if (!BalanceState.hasClaimedFreeToday() && !isClaiming) {
+                            coroutineScope.launch {
+                                isClaiming = true
+                                val result = AuthApi.claimDailyBonus()
+                                result.onSuccess { newBalance ->
+                                    BalanceState.balance.intValue = newBalance
+                                    BalanceState.markFreeClaimedToday()
+                                }.onFailure { error ->
+                                    if (error is AlreadyClaimedException) {
+                                        BalanceState.markFreeClaimedToday()
+                                    }
+                                }
+                                isClaiming = false
+                            }
                         }
                     }
                 )

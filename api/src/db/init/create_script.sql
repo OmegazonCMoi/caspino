@@ -58,7 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_parties_game_type ON parties(game_type);
 -- =========================
 CREATE TABLE IF NOT EXISTS bets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  game_id UUID NOT NULL,
+  party_id UUID NOT NULL,
   user_id UUID NOT NULL,
   amount NUMERIC(12,2) NOT NULL,
   kind bet_kind NOT NULL,
@@ -68,11 +68,11 @@ CREATE TABLE IF NOT EXISTS bets (
   CONSTRAINT bets_amount_positive CHECK (amount > 0),
   CONSTRAINT bets_selection_object CHECK (jsonb_typeof(selection) = 'object'),
 
-  CONSTRAINT bets_game_fk FOREIGN KEY (game_id) REFERENCES parties(id) ON DELETE CASCADE,
+  CONSTRAINT bets_party_fk FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE,
   CONSTRAINT bets_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_bets_game_id ON bets(game_id);
+CREATE INDEX IF NOT EXISTS idx_bets_party_id ON bets(party_id);
 CREATE INDEX IF NOT EXISTS idx_bets_user_id_created_at ON bets(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bets_kind ON bets(kind);
 
@@ -126,10 +126,10 @@ CREATE TABLE IF NOT EXISTS slot_results (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   party_id UUID NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
-  result CHAR(3) NOT NULL,
+  result TEXT NOT NULL,
   gain NUMERIC(12,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT slot_result_format CHECK (result ~ '^[0-9]{3}$'),
+  CONSTRAINT slot_result_format CHECK (result ~ '^\[("[0-9]",?)+\]$'),
   CONSTRAINT slot_gain_nonnegative CHECK (gain >= 0)
 );
 
@@ -236,7 +236,7 @@ BEGIN
 
   IF NEW.gain > 0 THEN
     INSERT INTO wallet_transactions (user_id, amount, reason, reference_id)
-    VALUES (u_id, NEW.gain, 'game_win', NEW.game_id);
+    VALUES (u_id, NEW.gain, 'game_win', NEW.party_id);
   END IF;
 
   RETURN NEW;

@@ -19,23 +19,27 @@ const send = (ws: WebSocket, msg: any) => {
 
 const game = new SlotsGame(send)
 
-wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
+wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   const decoded = authenticateWS(req)
   if (!decoded) {
     ws.close(1008, "Invalid or missing token")
     return
   }
 
-  const dbUser = await getUserById(decoded.userId as string)
-  if (!dbUser) {
-    ws.close(1008, "User not found")
-    return
-  }
+  const userPromise = getUserById(decoded.userId as string)
 
-  const userId = dbUser.id
+  userPromise.then((dbUser) => {
+    if (!dbUser) {
+      ws.close(1008, "User not found")
+    }
+  })
 
   ws.on("message", async (raw) => {
     try {
+      const dbUser = await userPromise
+      if (!dbUser) return
+
+      const userId = dbUser.id
       const msg = JSON.parse(raw.toString())
 
       if (msg.type === "PLACE_BET") {
@@ -84,11 +88,11 @@ wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
           },
         })
       }
-    } catch (e: any) {
-      console.error("Slots WS error", e)
+    } catch (error: any) {
+      console.error("Slots WS error", error)
       send(ws, {
         type: "ERROR",
-        payload: { message: e.message ?? "Erreur serveur" },
+        payload: { message: error.message ?? "Erreur serveur" },
       })
     }
   })
