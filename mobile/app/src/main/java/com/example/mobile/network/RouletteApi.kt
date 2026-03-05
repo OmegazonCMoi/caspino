@@ -14,6 +14,7 @@ import org.json.JSONObject
 data class RoulettePhaseUpdate(
     val phase: String,
     val endsAt: Long,
+    val durationMs: Long = 0,
     val winningNumber: Int? = null
 )
 
@@ -50,6 +51,7 @@ object RouletteApi {
                             RoulettePhaseUpdate(
                                 phase = payload.getString("phase"),
                                 endsAt = payload.getLong("endsAt"),
+                                durationMs = payload.optLong("durationMs", 0),
                                 winningNumber = if (payload.has("winningNumber")) payload.getInt("winningNumber") else null
                             )
                         )

@@ -352,7 +352,11 @@ fun RouletteScreen(
         RouletteApi.onPhaseUpdate = { update ->
             scope.launch {
                 serverPhase = update.phase
-                phaseEndsAt = update.endsAt
+                phaseEndsAt = if (update.durationMs > 0) {
+                    System.currentTimeMillis() + update.durationMs
+                } else {
+                    update.endsAt
+                }
 
                 when (update.phase) {
                     "BETTING" -> {

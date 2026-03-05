@@ -6,6 +6,7 @@ import { playeEffect } from "../playeEffect.ts"
 export class RouletteGame {
   private phase: RoulettePhase = RoulettePhase.BETTING
   private phaseEndsAt = 0
+  private phaseDurationMs = 0
   private bets: Map<WebSocket, Bet[]> = new Map()
   private lastWinningNumber: number | null = null
 
@@ -21,10 +22,11 @@ export class RouletteGame {
   private setPhase(phase: RoulettePhase, durationMs: number) {
     this.phase = phase
     this.phaseEndsAt = Date.now() + durationMs
+    this.phaseDurationMs = durationMs
 
     this.broadcast({
       type: "PHASE_UPDATE",
-      payload: { phase, endsAt: this.phaseEndsAt },
+      payload: { phase, endsAt: this.phaseEndsAt, durationMs },
     })
 
     console.log(`Current phase: ${phase}`)
@@ -82,11 +84,13 @@ export class RouletteGame {
   }
 
   getCurrentPhase() {
+    const remainingMs = Math.max(0, this.phaseEndsAt - Date.now())
     return {
       type: "PHASE_UPDATE" as const,
       payload: {
         phase: this.phase,
         endsAt: this.phaseEndsAt,
+        durationMs: remainingMs,
         ...(this.lastWinningNumber !== null && this.phase !== RoulettePhase.BETTING
           ? { winningNumber: this.lastWinningNumber }
           : {}),
