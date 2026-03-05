@@ -108,6 +108,43 @@ object AuthApi {
         }
     }
 
+    suspend fun claimDailyBonus(): Result<Int> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = ApiClient.token
+                    ?: return@withContext Result.failure(IllegalStateException("No token"))
+
+                val request = Request.Builder()
+                    .url("${ApiClient.BASE_URL}/claim-daily-bonus")
+                    .addHeader("Authorization", "Bearer $token")
+                    .post("{}".toRequestBody(jsonMedia))
+                    .build()
+
+                ApiClient.http.newCall(request).execute().use { response ->
+                    val parsed = parseJsonBody(response)
+                    if (parsed.isFailure) return@withContext Result.failure(parsed.exceptionOrNull()!!)
+                    val json = parsed.getOrThrow()
+
+                    if (response.code == 409) {
+                        return@withContext Result.failure(
+                            AlreadyClaimedException(json.optString("message", "Déjà récupéré aujourd'hui"))
+                        )
+                    }
+
+                    if (!response.isSuccessful) {
+                        val msg = json.optString("message", "Erreur serveur")
+                        return@withContext Result.failure(IllegalStateException(msg))
+                    }
+
+                    val balance = json.optInt("balance", 0)
+                    Result.success(balance)
+                }
+            } catch (exception: Exception) {
+                Result.failure(exception)
+            }
+        }
+    }
+
     suspend fun fetchMe(): Result<MeResponse> {
         return withContext(Dispatchers.IO) {
             try {
@@ -153,3 +190,5 @@ data class MeResponse(
     val balance: Int,
     val createdAt: String
 )
+
+class AlreadyClaimedException(message: String) : Exception(message)

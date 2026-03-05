@@ -9,6 +9,8 @@ import {
   getUserById,
   getUserByUsernameOrEmail,
   createUser,
+  getLastDailyBonus,
+  insertDailyBonus,
 } from "./globalRepository.ts"
 import {
   getPerGameStats,
@@ -149,6 +151,35 @@ app.get("/me", authenticateJWT, async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal server error" })
   }
 })
+
+app.post(
+  "/claim-daily-bonus",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    try {
+      const { userId } = (req as any).user
+      console.log(`[claim-daily-bonus] Attempt for userId="${userId}"`)
+
+      const existingClaim = await getLastDailyBonus(userId)
+
+      if (existingClaim) {
+        console.log(`[claim-daily-bonus] Already claimed today for userId="${userId}"`)
+        return res.status(409).json({ message: "Already claimed today" })
+      }
+
+      await insertDailyBonus(userId, 500)
+
+      const user = await getUserById(userId)
+      const balance = Number(user?.balance ?? 0)
+
+      console.log(`[claim-daily-bonus] Success for userId="${userId}", balance=${balance}`)
+      res.status(200).json({ balance })
+    } catch (error) {
+      console.error("Claim daily bonus error:", error)
+      res.status(500).json({ message: "Internal server error" })
+    }
+  },
+)
 
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "api-caspino" })

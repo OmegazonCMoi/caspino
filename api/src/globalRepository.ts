@@ -72,6 +72,33 @@ export const finishParty = (partyId: string) => {
     .execute()
 }
 
+export const getLastDailyBonus = (userId: string) => {
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  return db
+    .selectFrom("wallet_transactions")
+    .selectAll()
+    .where("user_id", "=", userId)
+    .where("reason", "=", "daily_bonus")
+    .where("created_at", ">=", todayStart)
+    .executeTakeFirst()
+}
+
+export const insertDailyBonus = (userId: string, amount: number) => {
+  return db
+    .insertInto("wallet_transactions")
+    .values({
+      id: crypto.randomUUID(),
+      user_id: userId,
+      amount,
+      reason: "daily_bonus",
+      reference_id: null,
+      created_at: new Date(),
+    })
+    .execute()
+}
+
 export const placeBet = (
   partyId: string,
   userId: string,
