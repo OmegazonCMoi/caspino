@@ -93,6 +93,7 @@ fun SlotMachineScreen(
     var balance by BalanceState.balance
     var bet by remember { mutableStateOf(10) }
     var lastWin by remember { mutableStateOf(0) }
+    var lastResultDelta by remember { mutableStateOf<Int?>(null) }
     var spinTrigger by remember { mutableStateOf(0) }
     var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
 
@@ -166,6 +167,7 @@ fun SlotMachineScreen(
 
         isSpinning = true
         spinError = null
+        lastResultDelta = null
 
         try { spinStartMediaPlayer.seekTo(0); spinStartMediaPlayer.start() } catch (_: Exception) { }
         try { spinLoopMediaPlayer.seekTo(0); spinLoopMediaPlayer.start() } catch (_: Exception) { }
@@ -224,6 +226,7 @@ fun SlotMachineScreen(
             val win = serverResult.gain
             balance = serverResult.balance
             lastWin = win
+            lastResultDelta = win
 
             if (win > 0) {
                 val isJackpot = (target1 == target2 && target2 == target3)
@@ -345,6 +348,26 @@ fun SlotMachineScreen(
                     iconResId = symbolDrawables[reel3],
                     isSpinning = isSpinning,
                     modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Résultat du dernier spin
+            if (lastResultDelta != null && !isSpinning) {
+                val gain = lastResultDelta!!
+                val gainColor = when {
+                    gain <= 0 -> Color(0xFFEF4444)
+                    gain < bet -> Color(0xFFF59E0B)
+                    else -> Color(0xFF22C55E)
+                }
+                Text(
+                    text = "+$gain",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = gainColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
                 )
             }
 
