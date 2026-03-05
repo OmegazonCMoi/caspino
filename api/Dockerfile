@@ -9,6 +9,4 @@ RUN npm ci
 
 COPY . .
 
-EXPOSE 5500
-
-CMD ["node", "--loader", "ts-node/esm", "src/index.ts"]
+EXPOSE 5500 5600 5700 5800

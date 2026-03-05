@@ -5,8 +5,60 @@ services:
     build: .
     container_name: caspino-api
     restart: unless-stopped
+    command: ["node", "--loader", "ts-node/esm", "src/index.ts"]
     ports:
       - "5500:5500"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    depends_on:
+      - postgres
+
+  roulette:
+    build: .
+    container_name: caspino-roulette
+    restart: unless-stopped
+    command: ["node", "--loader", "ts-node/esm", "src/games/roulette/index.ts"]
+    ports:
+      - "5600:5600"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    depends_on:
+      - postgres
+
+  slots:
+    build: .
+    container_name: caspino-slots
+    restart: unless-stopped
+    command: ["node", "--loader", "ts-node/esm", "src/games/slots/index.ts"]
+    ports:
+      - "5700:5700"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    depends_on:
+      - postgres
+
+  blackjack:
+    build: .
+    container_name: caspino-blackjack
+    restart: unless-stopped
+    command: ["node", "--loader", "ts-node/esm", "src/games/blackjack/index.ts"]
+    ports:
+      - "5800:5800"
     environment:
       JWT_SECRET: ${JWT_SECRET}
       DB_HOST: postgres

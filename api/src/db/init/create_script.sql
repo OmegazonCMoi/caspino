@@ -69,12 +69,7 @@ CREATE TABLE IF NOT EXISTS bets (
   CONSTRAINT bets_selection_object CHECK (jsonb_typeof(selection) = 'object'),
 
   CONSTRAINT bets_game_fk FOREIGN KEY (game_id) REFERENCES parties(id) ON DELETE CASCADE,
-  CONSTRAINT bets_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-
-  CONSTRAINT bets_user_matches_party
-    FOREIGN KEY (party_id)
-    REFERENCES parties(id)
-    ON DELETE CASCADE
+  CONSTRAINT bets_user_fk FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_bets_game_id ON bets(game_id);
