@@ -120,79 +120,89 @@ fun ShopScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Contenu scrollable avec padding horizontal
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-            ) {
-                BalanceHeader(
-                    amount = balance,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+            if (isLoadingClaimStatus) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = DarkTextSecondary
+                    )
+                }
+            } else {
+                // Contenu scrollable avec padding horizontal
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp)
+                ) {
+                    BalanceHeader(
+                        amount = balance,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
 
-                Text(
-                    text = "La monnaie de l'app pour jouer à tous les jeux.",
-                    fontSize = 14.sp,
-                    color = DarkTextSecondary,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
+                    Text(
+                        text = "La monnaie de l'app pour jouer à tous les jeux.",
+                        fontSize = 14.sp,
+                        color = DarkTextSecondary,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                // Offre gratuite : une seule récup par jour (appel API)
-                val hasClaimedFree = BalanceState.hasClaimedFreeToday()
-                PinosOfferCardFull(
-                    offer = freeOffer,
-                    enabled = !hasClaimedFree && !isClaiming && !isLoadingClaimStatus,
-                    secondsUntilReset = if (hasClaimedFree) secondsUntilMidnight else 0L,
-                    isLoading = isLoadingClaimStatus,
-                    onBuyClick = {
-                        if (!BalanceState.hasClaimedFreeToday() && !isClaiming) {
-                            coroutineScope.launch {
-                                isClaiming = true
-                                val result = AuthApi.claimDailyBonus()
-                                result.onSuccess { newBalance ->
-                                    BalanceState.balance.intValue = newBalance
-                                    BalanceState.markFreeClaimedToday()
-                                    ApiClient.saveBalance(newBalance)
-                                }.onFailure { error ->
-                                    if (error is AlreadyClaimedException) {
+                    // Offre gratuite : une seule récup par jour (appel API)
+                    val hasClaimedFree = BalanceState.hasClaimedFreeToday()
+                    PinosOfferCardFull(
+                        offer = freeOffer,
+                        enabled = !hasClaimedFree && !isClaiming,
+                        secondsUntilReset = if (hasClaimedFree) secondsUntilMidnight else 0L,
+                        onBuyClick = {
+                            if (!BalanceState.hasClaimedFreeToday() && !isClaiming) {
+                                coroutineScope.launch {
+                                    isClaiming = true
+                                    val result = AuthApi.claimDailyBonus()
+                                    result.onSuccess { newBalance ->
+                                        BalanceState.balance.intValue = newBalance
                                         BalanceState.markFreeClaimedToday()
+                                        ApiClient.saveBalance(newBalance)
+                                    }.onFailure { error ->
+                                        if (error is AlreadyClaimedException) {
+                                            BalanceState.markFreeClaimedToday()
+                                        }
                                     }
+                                    isClaiming = false
                                 }
-                                isClaiming = false
                             }
                         }
-                    }
-                )
+                    )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                // Offres payantes : 2 par 2
-                paidOffers.chunked(2).forEach { rowOffers ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        rowOffers.forEach { offer ->
-                            PinosOfferCardHalf(
-                                offer = offer,
-                                onBuyClick = {
-                                    // TODO: IAP
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
+                    // Offres payantes : 2 par 2
+                    paidOffers.chunked(2).forEach { rowOffers ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            rowOffers.forEach { offer ->
+                                PinosOfferCardHalf(
+                                    offer = offer,
+                                    onBuyClick = {
+                                        // TODO: IAP
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (rowOffers.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
-                        if (rowOffers.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
-
-                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -203,7 +213,6 @@ private fun PinosOfferCardFull(
     offer: PinosOffer,
     enabled: Boolean,
     secondsUntilReset: Long,
-    isLoading: Boolean,
     onBuyClick: () -> Unit
 ) {
     Row(
@@ -251,11 +260,7 @@ private fun PinosOfferCardFull(
                 )
             }
         }
-        val buttonText = when {
-            isLoading -> "..."
-            enabled -> offer.priceDisplay
-            else -> "Déjà récupéré"
-        }
+        val buttonText = if (enabled) offer.priceDisplay else "Déjà récupéré"
         AppButton(
             text = buttonText,
             onClick = onBuyClick,
