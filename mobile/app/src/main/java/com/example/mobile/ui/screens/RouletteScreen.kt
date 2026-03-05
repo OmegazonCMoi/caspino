@@ -388,10 +388,7 @@ fun RouletteScreen(
             }
         }
 
-        RouletteApi.onError = { msg ->
-            // Refund local bets if server rejected
-            if (!betsSentThisRound) return@onError
-            // Error after bet sent — could be balance issue, etc.
+        RouletteApi.onError = { _ ->
         }
 
         scope.launch {
