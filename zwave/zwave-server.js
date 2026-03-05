@@ -1,24 +1,25 @@
 const { Driver } = require("zwave-js");
 const mqtt = require("mqtt");
+const express = require("express");
 
 /* ==========================
    CONFIG
 ========================== */
+
 const ZWAVE_PORT = "/dev/ttyUSB0";
 const MQTT_URL = "mqtt://localhost";
+const HTTP_PORT = 5701;
 
-/**
- * ⚠️ ADAPTE LES nodeId APRÈS INCLUSION
- */
 const CASINO_DEVICES = {
-  JACKPOT_LIGHT: 3, // Ampoule ABUS (DIMMABLE)
-  POWER_PLUG: 4,    // Fibaro Wall Plug
-  SIREN: 2          // Aeotec Siren 6
+  LIGHT: 3,
+  PLUG: 4,
+  SIREN: 6
 };
 
 /* ==========================
-   RUNTIME CONFIG (ADMIN)
+   CONFIG RUNTIME
 ========================== */
+
 const DIM_CONFIG = {
   min: 10,
   max: 99,
@@ -28,13 +29,14 @@ const DIM_CONFIG = {
 };
 
 const SIREN_CONFIG = {
-  volume: 1,   // 1 = très faible
-  soundId: 26   // son victoire
+  volume: 5,
+  soundId: 26
 };
 
 /* ==========================
    UTILS
 ========================== */
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function isDimmable(node) {
@@ -47,177 +49,216 @@ async function setBrightness(node, level) {
   await node.commandClasses["Multilevel Switch"].set(level);
 }
 
-/* ===== BLINK PAR INTENSITÉ ===== */
+/* ==========================
+   BLINK LIGHT
+========================== */
+
 async function intensityBlink(node) {
+
   if (!isDimmable(node)) return;
 
   for (let c = 0; c < DIM_CONFIG.cycles; c++) {
+
     for (let v = DIM_CONFIG.min; v <= DIM_CONFIG.max; v += DIM_CONFIG.step) {
       await setBrightness(node, v);
       await sleep(DIM_CONFIG.delay);
     }
+
     for (let v = DIM_CONFIG.max; v >= DIM_CONFIG.min; v -= DIM_CONFIG.step) {
       await setBrightness(node, v);
       await sleep(DIM_CONFIG.delay);
     }
+
   }
+
 }
 
 /* ==========================
-   SIREN 6 FUNCTIONS
+   BLINK PLUG
 ========================== */
-async function setSirenVolume(node, volume) {
-  volume = Math.max(1, Math.min(5, volume));
 
-  console.log(`🔉 Volume sirène → ${volume}`);
+async function blinkPlug(node) {
 
-  await node.commandClasses.Configuration.set({
-    parameter: 37,
-    value: volume
-  });
+  for (let i = 0; i < 10; i++) {
+
+    await node.commandClasses["Binary Switch"].set(true);
+    await sleep(500);
+
+    await node.commandClasses["Binary Switch"].set(false);
+    await sleep(500);
+
+  }
+
 }
 
-async function playSirenSound(node, soundId) {
+/* ==========================
+   SIREN
+========================== */
+
+async function playSound(node, id) {
+
   const cc = node.commandClasses["Sound Switch"];
+
   if (!cc || !cc.play) {
-    console.warn("⚠️ Sound Switch non disponible");
+    console.warn("Sound Switch non disponible");
     return;
   }
 
-  console.log(`🎵 Siren Sound Switch → sound ${soundId}`);
-  await cc.play(soundId);
-}
+  await cc.play(id);
 
-async function stopSiren(node) {
-  const cc = node.commandClasses["Sound Switch"];
-  if (!cc || !cc.stop) return;
-
-  await cc.stop();
-}
-
-/* Son de victoire */
-async function victorySound(node) {
-  await playSirenSound(node, SIREN_CONFIG.soundId);
-  await sleep(2000);
-  await stopSiren(node);
 }
 
 /* ==========================
    MAIN
 ========================== */
+
 async function main() {
+
+  const app = express();
   const mqttClient = mqtt.connect(MQTT_URL);
 
-  mqttClient.on("connect", () => {
-    console.log("📡 MQTT connecté");
-    mqttClient.subscribe("casino/command/#");
-    mqttClient.subscribe("casino/admin/#");
-  });
-
   const driver = new Driver(ZWAVE_PORT, {
+
     logConfig: { enabled: true, level: "info" },
+
     securityKeys: {
-    S0_Legacy: Buffer.from("DA6E697B76EAE6ED7ED4B74F5AC53B3F", "hex"),
-    S2_Unauthenticated: Buffer.from("E5DCFBD223AB6A1440CA899FB9515506", "hex"),
-    S2_Authenticated: Buffer.from("AC52690F0B83154DF6B6B51EBFBA0443", "hex"),
-    S2_AccessControl: Buffer.from("6FDA476B344B4A98BFDF20FDF4E5465B", "hex")
-  }    
+
+      S0_Legacy: Buffer.from("DA6E697B76EAE6ED7ED4B74F5AC53B3F", "hex"),
+      S2_Unauthenticated: Buffer.from("E5DCFBD223AB6A1440CA899FB9515506", "hex"),
+      S2_Authenticated: Buffer.from("AC52690F0B83154DF6B6B51EBFBA0443", "hex"),
+      S2_AccessControl: Buffer.from("6FDA476B344B4A98BFDF20FDF4E5465B", "hex")
+
+    }
+
   });
 
   driver.on("node added", node => {
-    console.log(`➕ Node ajouté: ${node.id}`);
-    console.log(
-      "Command Classes:",
-      [...node.getSupportedCCs()].map(cc => cc.name)
-    );
-  });
 
-  /* MQTT HANDLER */
-  mqttClient.on("message", async (topic, message) => {
-    const payload = JSON.parse(message.toString());
+    console.log("Node ajouté :", node.id);
 
-    /* ===== ADMIN DIM ===== */
-    if (topic === "casino/admin/dim") {
-      if (payload.delay) DIM_CONFIG.delay = Math.max(10, payload.delay);
-      if (payload.step) DIM_CONFIG.step = Math.max(1, payload.step);
-      if (payload.cycles) DIM_CONFIG.cycles = Math.max(1, payload.cycles);
-
-      mqttClient.publish(
-        "casino/admin/dim/state",
-        JSON.stringify(DIM_CONFIG)
-      );
-      return;
-    }
-
-    /* ===== ADMIN SIREN ===== */
-    if (topic === "casino/admin/siren") {
-      if (payload.volume !== undefined) {
-        SIREN_CONFIG.volume = Math.max(1, Math.min(5, payload.volume));
-
-        const sirenNode = driver.controller.nodes.get(CASINO_DEVICES.SIREN);
-        if (sirenNode) {
-          await setSirenVolume(sirenNode, SIREN_CONFIG.volume);
-        }
-      }
-
-      if (payload.soundId !== undefined) {
-        SIREN_CONFIG.soundId = payload.soundId;
-      }
-
-      mqttClient.publish(
-        "casino/admin/siren/state",
-        JSON.stringify(SIREN_CONFIG)
-      );
-      return;
-    }
-
-    /* ===== Z-WAVE ADMIN ===== */
-    if (topic === "casino/admin/zwave") {
-      if (payload.mode === "INCLUDE") {
-        await driver.controller.beginInclusion();
-        setTimeout(() => driver.controller.stopInclusion(), 30000);
-      }
-      if (payload.mode === "EXCLUDE") {
-        await driver.controller.beginExclusion();
-        setTimeout(() => driver.controller.stopExclusion(), 30000);
-      }
-      return;
-    }
-
-    /* ===== COMMANDES CASINO ===== */
-    if (!topic.startsWith("casino/command")) return;
-
-    const nodeId = CASINO_DEVICES[payload.device];
-    if (!nodeId) return;
-
-    const node = driver.controller.nodes.get(nodeId);
-    if (!node) return;
-
-    switch (payload.action) {
-      case "ON":
-        await node.commandClasses["Binary Switch"].set(true);
-        break;
-
-      case "OFF":
-        await node.commandClasses["Binary Switch"].set(false);
-        break;
-
-      case "DIM":
-        await setBrightness(node, payload.level);
-        break;
-
-      case "BLINK":
-        await intensityBlink(node);
-        break;
-
-      case "VICTORY":
-        await victorySound(node);
-        break;
-    }
   });
 
   await driver.start();
-  console.log("✅ Z-Wave driver démarré");
+
+  console.log("ZWave démarré");
+
+  /* ==========================
+     HTTP ROUTES
+  ========================== */
+
+  /* DIMMER LUMIERE */
+
+  app.post("/light/dim/:level", async (req, res) => {
+
+    const level = parseInt(req.params.level);
+
+    const node = driver.controller.nodes.get(CASINO_DEVICES.LIGHT);
+    if (!node) return res.status(404).send("node not found");
+
+    await setBrightness(node, level);
+
+    res.send("ok");
+
+  });
+
+  /* CHANGER SON PAR DEFAUT */
+
+  app.post("/siren/sound/:id", (req, res) => {
+
+    SIREN_CONFIG.soundId = parseInt(req.params.id);
+
+    res.send("ok");
+
+  });
+
+  /* BLINK PLUG */
+
+  app.post("/plug/blink", async (req, res) => {
+
+    const node = driver.controller.nodes.get(CASINO_DEVICES.PLUG);
+    if (!node) return res.status(404).send("node not found");
+
+    blinkPlug(node);
+
+    res.send("ok");
+
+  });
+
+  /* PETITE VICTOIRE */
+
+  app.post("/siren/small", async (req, res) => {
+
+    const node = driver.controller.nodes.get(CASINO_DEVICES.SIREN);
+    if (!node) return res.status(404).send("node not found");
+
+    await playSound(node, 27);
+
+    res.send("ok");
+
+  });
+
+  /* VICTOIRE MOYENNE */
+
+  app.post("/siren/medium", async (req, res) => {
+
+    const node = driver.controller.nodes.get(CASINO_DEVICES.SIREN);
+    if (!node) return res.status(404).send("node not found");
+
+    await playSound(node, 29);
+
+    res.send("ok");
+
+  });
+
+  /* GROSSE VICTOIRE */
+
+  app.post("/siren/big", async (req, res) => {
+
+    const node = driver.controller.nodes.get(CASINO_DEVICES.SIREN);
+    if (!node) return res.status(404).send("node not found");
+
+    await playSound(node, 26);
+
+    res.send("ok");
+
+  });
+
+  /* JACKPOT */
+
+  app.post("/casino/jackpot", async (req, res) => {
+
+    const siren = driver.controller.nodes.get(CASINO_DEVICES.SIREN);
+    const plug = driver.controller.nodes.get(CASINO_DEVICES.PLUG);
+
+    if (siren) playSound(siren, 19);
+    if (plug) blinkPlug(plug);
+
+    res.send("jackpot");
+
+  });
+
+  /* ==========================
+     MQTT
+  ========================== */
+
+  mqttClient.on("connect", () => {
+
+    console.log("MQTT connecté");
+
+    mqttClient.subscribe("casino/#");
+
+  });
+
+  /* ==========================
+     SERVER START
+  ========================== */
+
+  app.listen(HTTP_PORT, () => {
+
+    console.log("HTTP server :", HTTP_PORT);
+
+  });
+
 }
 
 main().catch(console.error);

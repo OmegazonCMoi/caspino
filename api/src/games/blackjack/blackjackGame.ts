@@ -297,7 +297,6 @@ export class BlackjackGame {
   private resolveGame(ws: WebSocket, session: BlackjackSession) {
     session.phase = SessionPhase.RESOLVED
     const result = calculateBlackjackGains(session)
-
     this.message(ws, {
       type: "BET_RESULT",
       payload: {
