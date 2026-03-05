@@ -169,6 +169,7 @@ fun RouletteScreen(
 ) {
     var spinCommandId by remember { mutableIntStateOf(0) }
     var currentSpinCommand by remember { mutableStateOf<SpinCommand?>(null) }
+    var wheelFinished by remember { mutableStateOf(false) }
 
     var balance by BalanceState.balance
     var winningNumber by remember { mutableStateOf<Int?>(null) }
@@ -345,6 +346,7 @@ fun RouletteScreen(
                     winningNumber = null
                     lastPayout = 0
                     betsSentThisRound = false
+                    wheelFinished = false
                     numberBets = emptyMap()
                     groupBets = emptyMap()
                     multiBets = emptyMap()
@@ -686,56 +688,33 @@ fun RouletteScreen(
                                     Text("Mise totale : $totalBet", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                                 }
 
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (totalBet > 0) {
-                                        AppButton(
-                                            text = "Effacer tout",
-                                            onClick = { clearAllBets() },
-                                            variant = ButtonVariant.Secondary,
-                                            size = ButtonSize.Medium,
-                                            enabled = true,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    if (totalBet > 0 && isConnected) {
-                                        AppButton(
-                                            text = "Valider",
-                                            onClick = { sendBetsToServer() },
-                                            variant = ButtonVariant.Primary,
-                                            size = ButtonSize.Medium,
-                                            enabled = !betsSentThisRound,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
-
-                                if (betsSentThisRound) {
-                                    Text(
-                                        text = "Mises envoyees - en attente du tirage...",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF4CAF50)
+                                if (totalBet > 0) {
+                                    AppButton(
+                                        text = "Effacer tout",
+                                        onClick = { clearAllBets() },
+                                        variant = ButtonVariant.Secondary,
+                                        size = ButtonSize.Medium,
+                                        enabled = true,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
                         }
 
-                        isSpinning -> {
-                            // ============ SPINNING PHASE ============
+                        isSpinning || isResult -> {
+                            // ============ SPINNING + RESULT PHASE ============
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
-                                    text = "Les jeux sont faits",
+                                    text = if (!wheelFinished) "Les jeux sont faits" else "Resultat",
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
-
-                                Spacer(modifier = Modifier.height(8.dp))
 
                                 Box(
                                     modifier = Modifier.fillMaxWidth().height(wheelHeight),
@@ -745,120 +724,112 @@ fun RouletteScreen(
                                         isConnected = true,
                                         externalSpinCommand = currentSpinCommand,
                                         onExternalSpinConsumed = { currentSpinCommand = null },
-                                        onNumberSelected = { /* result comes from server */ }
+                                        onNumberSelected = { wheelFinished = true }
                                     )
                                 }
 
-                                Text(
-                                    text = "La roue tourne...",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFB0B0B0)
-                                )
-                            }
-                        }
-
-                        isResult -> {
-                            // ============ RESULT PHASE ============
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                // Winning number
-                                if (winningNumber != null) {
-                                    val winColor = when {
-                                        winningNumber == 0 -> Color(0xFF1B5E20)
-                                        isRouletteRed(winningNumber!!) -> Color(0xFFB71C1C)
-                                        else -> Color(0xFF212121)
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .size(72.dp)
-                                            .background(winColor, CircleShape)
-                                            .border(3.dp, Color.White, CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(winningNumber.toString(), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    }
-
-                                    if (!betsSentThisRound) {
-                                        Text("Aucune mise", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF888888))
-                                    } else if (lastPayout > 0) {
-                                        Text("+$lastPayout", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
-                                    } else {
-                                        Text("Perdu", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFEF5350))
-                                    }
-                                } else {
-                                    // No result yet (user joined mid-round)
+                                if (!wheelFinished) {
                                     Text(
-                                        text = "En attente du resultat...",
+                                        text = "La roue tourne...",
                                         fontSize = 16.sp,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = Color(0xFFB0B0B0)
                                     )
-                                }
-
-                                // Bet summary (only if bets were placed)
-                                if (betsSentThisRound && (numberBets.isNotEmpty() || multiBets.isNotEmpty() || groupBets.isNotEmpty())) {
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        if (numberBets.isNotEmpty()) {
-                                            numberBets.entries.sortedBy { it.key }.chunked(6).forEach { rowEntries ->
-                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    rowEntries.forEach { (number, amount) ->
-                                                        val baseColor = when { number == 0 -> Color(0xFF1B5E20); isRouletteRed(number) -> Color(0xFFB71C1C); else -> Color(0xFF212121) }
-                                                        RouletteBetChipStatic(label = "$number\n$amount", baseColor = baseColor, isWinner = winningNumber == number, modifier = Modifier.weight(1f))
-                                                    }
-                                                    repeat(6 - rowEntries.size) { Spacer(modifier = Modifier.weight(1f)) }
-                                                }
-                                            }
+                                } else {
+                                    // Show result once wheel stops
+                                    if (winningNumber != null) {
+                                        val winColor = when {
+                                            winningNumber == 0 -> Color(0xFF1B5E20)
+                                            isRouletteRed(winningNumber!!) -> Color(0xFFB71C1C)
+                                            else -> Color(0xFF212121)
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .size(72.dp)
+                                                .background(winColor, CircleShape)
+                                                .border(3.dp, Color.White, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(winningNumber.toString(), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                         }
 
-                                        if (multiBets.isNotEmpty()) {
-                                            multiBets.entries.chunked(4).forEach { rowEntries ->
-                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    rowEntries.forEach { (key, amount) ->
-                                                        val numbers = key.split("_").map { it.toInt() }
-                                                        val typeLabel = when (numbers.size) { 2 -> "Cheval"; 3 -> "Trans."; 4 -> "Carre"; else -> "" }
-                                                        RouletteBetChipStatic(
-                                                            label = "$typeLabel\n${numbers.joinToString("-")}\n$amount",
-                                                            baseColor = Color(0xFF37474F),
-                                                            isWinner = winningNumber != null && winningNumber in numbers,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
+                                        if (!betsSentThisRound) {
+                                            Text("Aucune mise", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF888888))
+                                        } else if (lastPayout > 0) {
+                                            Text("+$lastPayout", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                                        } else {
+                                            Text("Perdu", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFEF5350))
+                                        }
+                                    } else {
+                                        Text(
+                                            text = "En attente du resultat...",
+                                            fontSize = 16.sp,
+                                            color = Color(0xFFB0B0B0)
+                                        )
+                                    }
+
+                                    // Bet summary
+                                    if (betsSentThisRound && (numberBets.isNotEmpty() || multiBets.isNotEmpty() || groupBets.isNotEmpty())) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            if (numberBets.isNotEmpty()) {
+                                                numberBets.entries.sortedBy { it.key }.chunked(6).forEach { rowEntries ->
+                                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                        rowEntries.forEach { (number, amount) ->
+                                                            val baseColor = when { number == 0 -> Color(0xFF1B5E20); isRouletteRed(number) -> Color(0xFFB71C1C); else -> Color(0xFF212121) }
+                                                            RouletteBetChipStatic(label = "$number\n$amount", baseColor = baseColor, isWinner = winningNumber == number, modifier = Modifier.weight(1f))
+                                                        }
+                                                        repeat(6 - rowEntries.size) { Spacer(modifier = Modifier.weight(1f)) }
                                                     }
-                                                    repeat(4 - rowEntries.size) { Spacer(modifier = Modifier.weight(1f)) }
                                                 }
                                             }
-                                        }
 
-                                        if (groupBets.isNotEmpty()) {
-                                            val groupLabels = mapOf(
-                                                "D_1ere 12" to "1ere 12", "D_2eme 12" to "2eme 12", "D_3eme 12" to "3eme 12",
-                                                "PAIR" to "Pair", "IMPAIR" to "Impair", "LOW" to "1-18", "HIGH" to "19-36", "RED" to "Rouge", "BLACK" to "Noir"
-                                            )
-                                            groupBets.entries.chunked(4).forEach { rowEntries ->
-                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    rowEntries.forEach { (groupId, amount) ->
-                                                        val label = groupLabels[groupId] ?: groupId
-                                                        val baseColor = when (groupId) { "RED" -> Color(0xFFB71C1C); "BLACK" -> Color(0xFF212121); else -> Color(0xFF263238) }
-                                                        val isWinner = winningNumber != null && isWinningGroupForDisplay(groupId, winningNumber!!)
-                                                        RouletteBetChipStatic(label = "$label\n$amount", baseColor = baseColor, isWinner = isWinner, modifier = Modifier.weight(1f))
+                                            if (multiBets.isNotEmpty()) {
+                                                multiBets.entries.chunked(4).forEach { rowEntries ->
+                                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                        rowEntries.forEach { (key, amount) ->
+                                                            val numbers = key.split("_").map { it.toInt() }
+                                                            val typeLabel = when (numbers.size) { 2 -> "Cheval"; 3 -> "Trans."; 4 -> "Carre"; else -> "" }
+                                                            RouletteBetChipStatic(
+                                                                label = "$typeLabel\n${numbers.joinToString("-")}\n$amount",
+                                                                baseColor = Color(0xFF37474F),
+                                                                isWinner = winningNumber != null && winningNumber in numbers,
+                                                                modifier = Modifier.weight(1f)
+                                                            )
+                                                        }
+                                                        repeat(4 - rowEntries.size) { Spacer(modifier = Modifier.weight(1f)) }
                                                     }
-                                                    repeat(4 - rowEntries.size) { Spacer(modifier = Modifier.weight(1f)) }
+                                                }
+                                            }
+
+                                            if (groupBets.isNotEmpty()) {
+                                                val groupLabels = mapOf(
+                                                    "D_1ere 12" to "1ere 12", "D_2eme 12" to "2eme 12", "D_3eme 12" to "3eme 12",
+                                                    "PAIR" to "Pair", "IMPAIR" to "Impair", "LOW" to "1-18", "HIGH" to "19-36", "RED" to "Rouge", "BLACK" to "Noir"
+                                                )
+                                                groupBets.entries.chunked(4).forEach { rowEntries ->
+                                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                        rowEntries.forEach { (groupId, amount) ->
+                                                            val label = groupLabels[groupId] ?: groupId
+                                                            val baseColor = when (groupId) { "RED" -> Color(0xFFB71C1C); "BLACK" -> Color(0xFF212121); else -> Color(0xFF263238) }
+                                                            val isWinner = winningNumber != null && isWinningGroupForDisplay(groupId, winningNumber!!)
+                                                            RouletteBetChipStatic(label = "$label\n$amount", baseColor = baseColor, isWinner = isWinner, modifier = Modifier.weight(1f))
+                                                        }
+                                                        repeat(4 - rowEntries.size) { Spacer(modifier = Modifier.weight(1f)) }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
 
-                                Text(
-                                    text = "Prochaine manche dans ${timeLeftSec}s",
-                                    fontSize = 13.sp,
-                                    color = Color(0xFF888888)
-                                )
+                                    Text(
+                                        text = "Prochaine manche dans ${timeLeftSec}s",
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF888888)
+                                    )
+                                }
                             }
                         }
                     }

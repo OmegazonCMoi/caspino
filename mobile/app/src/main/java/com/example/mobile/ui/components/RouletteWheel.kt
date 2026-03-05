@@ -88,7 +88,7 @@ fun RouletteWheel(
             scroller.animateTo(
                 targetValue = targetScrollPx,
                 animationSpec = tween(
-                    durationMillis = 15000,
+                    durationMillis = 7000,
                     easing = CubicBezierEasing(0.08f, 0.78f, 0.22f, 1f)
                 )
             )
