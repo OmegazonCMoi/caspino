@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
 import com.example.mobile.ui.components.AppButton
+import com.example.mobile.ui.components.BetInput
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BalanceHeader
 import com.example.mobile.ui.components.AppBottomBar
@@ -459,33 +460,12 @@ private fun BettingSection(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = "Mise : $bet",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = DarkTextPrimary
+        BetInput(
+            bet = bet,
+            onBetChange = onBetChange,
+            maxBet = balance,
+            enabled = !isLoading
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AppButton(
-                text = "-10",
-                onClick = { if (bet > 10) onBetChange(bet - 10) },
-                variant = ButtonVariant.Outline,
-                size = ButtonSize.Medium,
-                enabled = bet > 10 && !isLoading,
-                modifier = Modifier.weight(1f)
-            )
-            AppButton(
-                text = "+10",
-                onClick = { if (bet < balance) onBetChange(bet + 10) },
-                variant = ButtonVariant.Outline,
-                size = ButtonSize.Medium,
-                enabled = bet < balance && !isLoading,
-                modifier = Modifier.weight(1f)
-            )
-        }
 
         AppButton(
             text = "Jouer",

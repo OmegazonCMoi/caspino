@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppCard
+import com.example.mobile.ui.components.BetInput
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.ButtonSize
 import com.example.mobile.ui.components.ButtonVariant
@@ -54,6 +55,8 @@ fun PokerScreen(
     var gamePhase by remember { mutableStateOf("") } // "preflop", "flop", "turn", "river"
     var pot by remember { mutableStateOf(0) }
     var playerBet by remember { mutableStateOf(0) }
+    var betAmount by remember { mutableStateOf(10) }
+    var balance by BalanceState.balance
 
     fun drawCard(): Int {
         return Random.nextInt(1, 14) // 1-13 (As à Roi)
@@ -239,11 +242,18 @@ fun PokerScreen(
 
             // Boutons d'action
             if (!gameStarted) {
+                BetInput(
+                    bet = betAmount,
+                    onBetChange = { betAmount = it },
+                    maxBet = balance
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 AppButton(
                     text = "Distribuer",
                     onClick = { dealCards() },
                     variant = ButtonVariant.Primary,
                     size = ButtonSize.Large,
+                    enabled = betAmount > 0 && balance >= betAmount,
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
@@ -258,17 +268,11 @@ fun PokerScreen(
                         when (gamePhase) {
                             "preflop" -> {
                                 AppButton(
-                                    text = "Miser 10",
-                                    onClick = { bet(10) },
+                                    text = "Miser $betAmount",
+                                    onClick = { bet(betAmount) },
                                     variant = ButtonVariant.Primary,
                                     size = ButtonSize.Medium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                AppButton(
-                                    text = "Miser 50",
-                                    onClick = { bet(50) },
-                                    variant = ButtonVariant.Primary,
-                                    size = ButtonSize.Medium,
+                                    enabled = betAmount > 0 && balance >= betAmount,
                                     modifier = Modifier.weight(1f)
                                 )
                             }

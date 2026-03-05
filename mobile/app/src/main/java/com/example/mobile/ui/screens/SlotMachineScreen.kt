@@ -60,6 +60,7 @@ import com.example.mobile.MainActivity
 import com.example.mobile.R
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppCard
+import com.example.mobile.ui.components.BetInput
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BalanceHeader
 import com.example.mobile.ui.components.AppBottomBar
@@ -373,51 +374,12 @@ fun SlotMachineScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Mise (texte centré au-dessus des boutons)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Mise : ",
-                    fontSize = 16.sp,
-                    color = DarkTextPrimary
-                )
-                Text(
-                    text = "$bet",
-                    fontSize = 16.sp,
-                    color = DarkTextPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Contrôles de mise
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AppButton(
-                    text = "-10",
-                    onClick = { if (bet > 10) bet -= 10 },
-                    variant = ButtonVariant.Outline,
-                    size = ButtonSize.Medium,
-                    enabled = !isSpinning && bet > 10,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f)
-                )
-                AppButton(
-                    text = "+10",
-                    onClick = { if (bet < balance) bet += 10 },
-                    variant = ButtonVariant.Outline,
-                    size = ButtonSize.Medium,
-                    enabled = !isSpinning && bet < balance,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            BetInput(
+                bet = bet,
+                onBetChange = { bet = it },
+                maxBet = balance,
+                enabled = !isSpinning
+            )
 
             if (spinError != null) {
                 Text(

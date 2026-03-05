@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppCard
+import com.example.mobile.ui.components.BetInput
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BalanceHeader
 import com.example.mobile.ui.components.AppBottomBar
@@ -315,6 +316,14 @@ fun RouletteScreen(
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        BetInput(
+                            bet = bet,
+                            onBetChange = { bet = it },
+                            maxBet = balance
+                        )
 
                         Spacer(modifier = Modifier.height(6.dp))
 

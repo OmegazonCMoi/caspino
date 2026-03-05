@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppCard
+import com.example.mobile.ui.components.BetInput
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.ButtonSize
 import com.example.mobile.ui.components.ButtonVariant
@@ -60,7 +61,8 @@ data class Match(
 fun SportsBettingScreen(
     onBackClick: () -> Unit
 ) {
-    var balance by remember { mutableStateOf(1000) }
+    var balance by BalanceState.balance
+    var bet by remember { mutableStateOf(10) }
     var selectedBets by remember { mutableStateOf<Map<Int, Pair<String, Int>>>(emptyMap()) }
 
     val matches = remember {
@@ -187,6 +189,13 @@ fun SportsBettingScreen(
                 }
             }
 
+            BetInput(
+                bet = bet,
+                onBetChange = { bet = it },
+                maxBet = balance,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
             // Liste des matchs
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -197,6 +206,7 @@ fun SportsBettingScreen(
                     MatchCard(
                         match = match,
                         selectedBet = selectedBets[match.id],
+                        betAmount = bet,
                         onBetClick = { betType, amount ->
                             placeBet(match.id, betType, amount)
                         },
@@ -213,6 +223,7 @@ fun SportsBettingScreen(
 fun MatchCard(
     match: Match,
     selectedBet: Pair<String, Int>?,
+    betAmount: Int,
     onBetClick: (String, Int) -> Unit,
     onRemoveBet: () -> Unit,
     balance: Int
@@ -294,20 +305,20 @@ fun MatchCard(
                 ) {
                     BetButton(
                         text = "${match.team1}\n${match.odds1}",
-                        onClick = { onBetClick("1", 10) },
-                        enabled = balance >= 10,
+                        onClick = { onBetClick("1", betAmount) },
+                        enabled = balance >= betAmount && betAmount > 0,
                         modifier = Modifier.weight(1f)
                     )
                     BetButton(
                         text = "Nul\n${match.oddsDraw}",
-                        onClick = { onBetClick("N", 10) },
-                        enabled = balance >= 10,
+                        onClick = { onBetClick("N", betAmount) },
+                        enabled = balance >= betAmount && betAmount > 0,
                         modifier = Modifier.weight(1f)
                     )
                     BetButton(
                         text = "${match.team2}\n${match.odds2}",
-                        onClick = { onBetClick("2", 10) },
-                        enabled = balance >= 10,
+                        onClick = { onBetClick("2", betAmount) },
+                        enabled = balance >= betAmount && betAmount > 0,
                         modifier = Modifier.weight(1f)
                     )
                 }
