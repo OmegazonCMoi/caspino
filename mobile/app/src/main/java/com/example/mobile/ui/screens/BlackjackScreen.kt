@@ -112,9 +112,11 @@ fun BlackjackScreen(
 
     DisposableEffect(Unit) {
         BlackjackApi.onGameState = { state ->
-            gameState = state
-            isLoading = false
-            errorMessage = null
+            coroutineScope.launch {
+                gameState = state
+                isLoading = false
+                errorMessage = null
+            }
         }
         BlackjackApi.onBetResult = { result ->
             coroutineScope.launch {
@@ -159,8 +161,10 @@ fun BlackjackScreen(
             }
         }
         BlackjackApi.onError = { message ->
-            errorMessage = message
-            isLoading = false
+            coroutineScope.launch {
+                errorMessage = message
+                isLoading = false
+            }
         }
 
         onDispose {

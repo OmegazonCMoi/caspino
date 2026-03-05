@@ -76,22 +76,26 @@ object BlackjackApi {
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
-            val json = JSONObject(text)
-            when (json.optString("type")) {
-                "GAME_STATE" -> {
-                    val payload = json.getJSONObject("payload")
-                    val gameState = parseGameState(payload)
-                    onGameState?.invoke(gameState)
+            try {
+                val json = JSONObject(text)
+                when (json.optString("type")) {
+                    "GAME_STATE" -> {
+                        val payload = json.getJSONObject("payload")
+                        val gameState = parseGameState(payload)
+                        onGameState?.invoke(gameState)
+                    }
+                    "BET_RESULT" -> {
+                        val payload = json.getJSONObject("payload")
+                        val betResult = parseBetResult(payload)
+                        onBetResult?.invoke(betResult)
+                    }
+                    "ERROR" -> {
+                        val msg = json.optJSONObject("payload")?.optString("message") ?: "Erreur serveur"
+                        onError?.invoke(msg)
+                    }
                 }
-                "BET_RESULT" -> {
-                    val payload = json.getJSONObject("payload")
-                    val betResult = parseBetResult(payload)
-                    onBetResult?.invoke(betResult)
-                }
-                "ERROR" -> {
-                    val msg = json.optJSONObject("payload")?.optString("message") ?: "Erreur serveur"
-                    onError?.invoke(msg)
-                }
+            } catch (exception: Exception) {
+                onError?.invoke(exception.message ?: "Erreur de parsing")
             }
         }
 
@@ -157,30 +161,32 @@ object BlackjackApi {
             hands.add(
                 BlackjackHandResult(
                     bet = handJson.getInt("bet"),
-                    gains = handJson.getInt("gains"),
+                    gains = handJson.getDouble("gains").toInt(),
                     playerValue = handJson.getInt("playerValue"),
                     status = handJson.getString("status")
                 )
             )
         }
 
-        val playerHandsArray = payload.getJSONArray("playerHands")
+        val playerHandsArray = payload.optJSONArray("playerHands")
         val playerHands = mutableListOf<BlackjackPlayerHand>()
-        for (handIndex in 0 until playerHandsArray.length()) {
-            val handJson = playerHandsArray.getJSONObject(handIndex)
-            val cardsArray = handJson.getJSONArray("cards")
-            val cards = mutableListOf<BlackjackCard>()
-            for (cardIndex in 0 until cardsArray.length()) {
-                cards.add(parseCard(cardsArray.getJSONObject(cardIndex)))
-            }
-            playerHands.add(
-                BlackjackPlayerHand(
-                    cards = cards,
-                    bet = handJson.getInt("bet"),
-                    isDoubled = handJson.getBoolean("isDoubled"),
-                    value = handJson.getInt("value")
+        if (playerHandsArray != null) {
+            for (handIndex in 0 until playerHandsArray.length()) {
+                val handJson = playerHandsArray.getJSONObject(handIndex)
+                val cardsArray = handJson.getJSONArray("cards")
+                val cards = mutableListOf<BlackjackCard>()
+                for (cardIndex in 0 until cardsArray.length()) {
+                    cards.add(parseCard(cardsArray.getJSONObject(cardIndex)))
+                }
+                playerHands.add(
+                    BlackjackPlayerHand(
+                        cards = cards,
+                        bet = handJson.getInt("bet"),
+                        isDoubled = handJson.getBoolean("isDoubled"),
+                        value = handJson.getInt("value")
+                    )
                 )
-            )
+            }
         }
 
         val dealerHandArray = payload.getJSONArray("dealerHand")
@@ -190,12 +196,12 @@ object BlackjackApi {
         }
 
         return BlackjackBetResult(
-            gains = payload.getInt("gains"),
+            gains = payload.getDouble("gains").toInt(),
             hands = hands,
             playerHands = playerHands,
             dealerHand = dealerCards,
             dealerValue = payload.getInt("dealerValue"),
-            insuranceGain = payload.getInt("insuranceGain"),
+            insuranceGain = payload.getDouble("insuranceGain").toInt(),
             balance = payload.getInt("balance")
         )
     }
