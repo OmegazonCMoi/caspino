@@ -61,71 +61,93 @@ export const verifyPassword = (
 }
 
 app.post("/signup", async (req: Request, res: Response) => {
-  const { username, password, email } = req.body
+  try {
+    const { username, password, email } = req.body
+    console.log(`[signup] Attempt for username="${username}" email="${email}"`)
 
-  const existing = await getUserByUsernameOrEmail(username, email)
+    const existing = await getUserByUsernameOrEmail(username, email)
 
-  if (existing) {
-    if (existing.username === username)
-      return res.status(409).json({ message: "Username already taken" })
+    if (existing) {
+      if (existing.username === username) {
+        return res.status(409).json({ message: "Username already taken" })
+      }
 
-    return res.status(409).json({ message: "Email address already taken" })
+      return res.status(409).json({ message: "Email address already taken" })
+    }
+
+    const hashedPassword = await hashPassword(password)
+    const userId = crypto.randomUUID()
+
+    await createUser(userId, username, hashedPassword, email)
+
+    const token = jwt.sign({ username, userId }, JWT_SECRET, {
+      expiresIn: "7d",
+    })
+
+    console.log(`[signup] Success for username="${username}"`)
+    res.status(200).json({ message: "Login successful", token, balance: 0 })
+  } catch (error) {
+    console.error("Signup error:", error)
+    res.status(500).json({ message: "Internal server error" })
   }
-
-  const hashedPassword = await hashPassword(password)
-  const userId = crypto.randomUUID()
-
-  await createUser(userId, username, hashedPassword, email)
-
-  const token = jwt.sign({ username, userId }, JWT_SECRET, {
-    expiresIn: "7d",
-  })
-
-  res.status(200).json({ message: "Login successful", token, balance: 0 })
 })
 
 app.post("/login", async (req: Request, res: Response) => {
-  const { username, password } = req.body
+  try {
+    const { username, password } = req.body
+    console.log(`[login] Attempt for username="${username}"`)
 
-  const user = await getUserByUsername(username)
+    const user = await getUserByUsername(username)
 
-  if (
-    !user?.password ||
-    !(await verifyPassword(password, user.password))
-  ) {
-    return res.status(401).json({ message: "Invalid credentials" })
+    if (!user?.password || !(await verifyPassword(password, user.password))) {
+      console.log(`[login] Invalid credentials for username="${username}"`)
+      return res.status(401).json({ message: "Invalid credentials" })
+    }
+
+    const token = jwt.sign({ username, userId: user.id }, JWT_SECRET, {
+      expiresIn: "7d",
+    })
+
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      balance: Number(user.balance),
+    })
+  } catch (error) {
+    console.error("Login error:", error)
+    res.status(500).json({ message: "Internal server error" })
   }
-
-  const token = jwt.sign({ username, userId: user.id }, JWT_SECRET, {
-    expiresIn: "7d",
-  })
-
-  res.status(200).json({ message: "Login successful", token, balance: Number(user.balance) })
 })
 
 app.post("/logout", (req: Request, res: Response) => {
+  console.log("[logout] Logout called")
   res
     .status(200)
     .json({ message: "Logout successful. Delete your token on client." })
 })
 
 app.get("/me", authenticateJWT, async (req: Request, res: Response) => {
-  const { userId, username } = (req as any).user
+  try {
+    const { userId, username } = (req as any).user
 
-  const user = userId
-    ? await getUserById(userId)
-    : await getUserByUsername(username)
+    const user = userId
+      ? await getUserById(userId)
+      : await getUserByUsername(username)
 
-  if (!user) return res.sendStatus(404)
+    if (!user) return res.sendStatus(404)
 
-  res.status(200).json({
-    user: {
-      username: user.username,
-      email: user.email,
-      balance: Number(user.balance),
-      createdAt: user.created_at,
-    },
-  })
+    res.status(200).json({
+      user: {
+        username: user.username,
+        email: user.email,
+        balance: Number(user.balance),
+        createdAt: user.created_at,
+      },
+    })
+  } catch (error) {
+    console.error("Fetch me error:", error)
+    res.status(500).json({ message: "Internal server error" })
+  }
 })
 
 app.get("/health", (req: Request, res: Response) => {
@@ -155,9 +177,7 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
 
       const ggr24h = betVolume24h - totalPayout24h
       const payoutRate =
-        betVolume24h > 0
-          ? Math.round((totalPayout24h * 100) / betVolume24h)
-          : 0
+        betVolume24h > 0 ? Math.round((totalPayout24h * 100) / betVolume24h) : 0
 
       totalSessions += sessions24h
       totalPlayers += uniquePlayers24h
