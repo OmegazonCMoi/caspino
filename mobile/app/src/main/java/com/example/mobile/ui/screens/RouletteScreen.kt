@@ -346,69 +346,77 @@ fun RouletteScreen(
     // --- WebSocket connection & event handling ---
     DisposableEffect(Unit) {
         RouletteApi.onPhaseUpdate = { update ->
-            serverPhase = update.phase
-            phaseEndsAt = update.endsAt
+            scope.launch {
+                serverPhase = update.phase
+                phaseEndsAt = update.endsAt
 
-            when (update.phase) {
-                "BETTING" -> {
-                    // New round: reset local state
-                    winningNumber = null
-                    lastPayout = 0
-                    betsSentThisRound = false
-                    wheelFinished = false
-                    numberBets = emptyMap()
-                    groupBets = emptyMap()
-                    multiBets = emptyMap()
-                }
-                "SPINNING" -> {
-                    // Auto-send handled by LaunchedEffect(serverPhase)
+                when (update.phase) {
+                    "BETTING" -> {
+                        // New round: reset local state
+                        winningNumber = null
+                        lastPayout = 0
+                        betsSentThisRound = false
+                        wheelFinished = false
+                        numberBets = emptyMap()
+                        groupBets = emptyMap()
+                        multiBets = emptyMap()
+                    }
+                    "SPINNING" -> {
+                        // Auto-send handled by LaunchedEffect(serverPhase)
+                    }
                 }
             }
         }
 
         // Winning number broadcast to ALL clients → triggers wheel spin
         RouletteApi.onRoundResult = { number ->
-            winningNumber = number
-            spinCommandId++
-            currentSpinCommand = SpinCommand(id = spinCommandId, number = number)
+            scope.launch {
+                winningNumber = number
+                spinCommandId++
+                currentSpinCommand = SpinCommand(id = spinCommandId, number = number)
+            }
         }
 
         // Individual gains for players who bet
         RouletteApi.onBetResult = { result ->
-            lastPayout = result.gains
+            scope.launch {
+                lastPayout = result.gains
 
-            // Sync balance from server
-            BalanceState.setBalance(result.balance)
-            ApiClient.saveBalance(result.balance)
+                // Sync balance from server
+                BalanceState.setBalance(result.balance)
+                ApiClient.saveBalance(result.balance)
 
-            // Confetti + sound only when gains >= 2x total bet
-            if (result.gains >= 2 * totalBetSentThisRound && totalBetSentThisRound > 0) {
-                val durationSec = 3.0
-                confettiParties = listOf(
-                    Party(
-                        angle = -45, spread = 45,
-                        position = Position.Relative(0.0, 0.26),
-                        emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                        fadeOutEnabled = true
-                    ),
-                    Party(
-                        angle = -135, spread = 45,
-                        position = Position.Relative(1.0, 0.26),
-                        emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                        fadeOutEnabled = true
+                // Confetti + sound only when gains >= 2x total bet
+                if (result.gains >= 2 * totalBetSentThisRound && totalBetSentThisRound > 0) {
+                    val durationSec = 3.0
+                    confettiParties = listOf(
+                        Party(
+                            angle = -45, spread = 45,
+                            position = Position.Relative(0.0, 0.26),
+                            emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                            fadeOutEnabled = true
+                        ),
+                        Party(
+                            angle = -135, spread = 45,
+                            position = Position.Relative(1.0, 0.26),
+                            emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                            fadeOutEnabled = true
+                        )
                     )
-                )
-                try { confettiMediaPlayer.seekTo(0); confettiMediaPlayer.start() } catch (_: Exception) { }
+                    try { confettiMediaPlayer.seekTo(0); confettiMediaPlayer.start() } catch (_: Exception) { }
+                }
             }
         }
 
         RouletteApi.onError = { _ ->
-            if (totalBet > 0) {
-                BalanceState.addPinos(totalBet)
-                numberBets = emptyMap()
-                groupBets = emptyMap()
-                multiBets = emptyMap()
-                betsSentThisRound = false
+            scope.launch {
+                if (totalBet > 0) {
+                    BalanceState.addPinos(totalBet)
+                    numberBets = emptyMap()
+                    groupBets = emptyMap()
+                    multiBets = emptyMap()
+                    betsSentThisRound = false
+                }
             }
         }
 

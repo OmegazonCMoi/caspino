@@ -10,7 +10,7 @@ export class RouletteGame {
 
   constructor(
     private broadcast: (msg: any) => void,
-    private message: (ws: WebSocket, msg: any) => void,
+    private message: (ws: WebSocket, msg: any) => Promise<void>,
   ) {}
 
   start() {
@@ -70,7 +70,7 @@ export class RouletteGame {
         const gains = await calculateGains(roulettteRandomResult, playerBets)
         const totalBet = playerBets.reduce((sum, singleBet) => sum + singleBet.amount, 0)
         playeEffect(gains, totalBet)
-        this.message(ws, {
+        await this.message(ws, {
           type: "BET_RESULT",
           payload: { gains, roulettteRandomResult },
         })
