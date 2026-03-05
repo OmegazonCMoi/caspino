@@ -108,13 +108,15 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           })
         }
 
+        // Store bets in memory FIRST (sync) so resolveGame() can find them
+        // even if the async DB operations below yield to the event loop
+        game.placeBet(bets, ws)
+
         const { id: partyId } = await createParty("roulette")
         await placeRouletteBets(partyId, ctx.userId, bets)
 
         ctx.partyId = partyId
         ctx.totalBet = totalBet
-
-        game.placeBet(bets, ws)
       } catch (e: any) {
         console.error("Roulette WS error", e)
         send(ws, {
