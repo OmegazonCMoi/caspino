@@ -28,6 +28,7 @@ object ApiClient {
     private const val KEY_TOKEN = "jwt_token"
     private const val KEY_USERNAME = "username"
     private const val KEY_EMAIL = "email"
+    private const val KEY_BALANCE = "balance"
 
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -46,6 +47,13 @@ object ApiClient {
     fun getSavedUsername(): String? = if (::prefs.isInitialized) prefs.getString(KEY_USERNAME, null) else null
     fun getSavedEmail(): String? = if (::prefs.isInitialized) prefs.getString(KEY_EMAIL, null) else null
     fun getSavedToken(): String? = if (::prefs.isInitialized) prefs.getString(KEY_TOKEN, null) else null
+    fun getSavedBalance(): Int = if (::prefs.isInitialized) prefs.getInt(KEY_BALANCE, 0) else 0
+
+    fun saveBalance(balance: Int) {
+        if (::prefs.isInitialized) {
+            prefs.edit().putInt(KEY_BALANCE, balance).apply()
+        }
+    }
 
     fun clearSession() {
         token = null

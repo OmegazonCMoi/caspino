@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.R
 import com.example.mobile.network.AlreadyClaimedException
+import com.example.mobile.network.ApiClient
 import com.example.mobile.network.AuthApi
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppHeader
@@ -124,6 +125,7 @@ fun ShopScreen(
                                 result.onSuccess { newBalance ->
                                     BalanceState.balance.intValue = newBalance
                                     BalanceState.markFreeClaimedToday()
+                                    ApiClient.saveBalance(newBalance)
                                 }.onFailure { error ->
                                     if (error is AlreadyClaimedException) {
                                         BalanceState.markFreeClaimedToday()

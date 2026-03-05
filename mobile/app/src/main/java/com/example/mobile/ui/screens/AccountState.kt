@@ -30,6 +30,7 @@ object AccountState {
             ApiClient.token = savedToken
             username = savedUsername
             email = ApiClient.getSavedEmail() ?: ""
+            BalanceState.balance.intValue = ApiClient.getSavedBalance()
             isLoggedIn = true
         }
     }
@@ -40,6 +41,10 @@ object AccountState {
             username = me.username
             email = me.email
             BalanceState.balance.intValue = me.balance
+            ApiClient.saveBalance(me.balance)
+            if (me.hasClaimedDailyBonus) {
+                BalanceState.markFreeClaimedToday()
+            }
         }.onFailure {
             logout()
         }
@@ -57,6 +62,7 @@ object AccountState {
             isLoggedIn = true
             BalanceState.balance.intValue = auth.balance
             ApiClient.saveSession(auth.token, auth.username, "")
+            ApiClient.saveBalance(auth.balance)
         }
     }
 
@@ -86,6 +92,7 @@ object AccountState {
             isLoggedIn = true
             BalanceState.balance.intValue = auth.balance
             ApiClient.saveSession(auth.token, auth.username, inputEmail)
+            ApiClient.saveBalance(auth.balance)
         }
     }
 
@@ -94,6 +101,7 @@ object AccountState {
         username = ""
         email = ""
         BalanceState.balance.intValue = 0
+        ApiClient.saveBalance(0)
         ApiClient.clearSession()
     }
 }

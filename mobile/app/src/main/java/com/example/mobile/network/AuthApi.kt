@@ -173,7 +173,8 @@ object AuthApi {
                             username = json.optString("username"),
                             email = json.optString("email"),
                             balance = json.optInt("balance", 0),
-                            createdAt = json.optString("createdAt")
+                            createdAt = json.optString("createdAt"),
+                            hasClaimedDailyBonus = json.optBoolean("hasClaimedDailyBonus", false)
                         )
                     )
                 }
@@ -188,7 +189,8 @@ data class MeResponse(
     val username: String,
     val email: String,
     val balance: Int,
-    val createdAt: String
+    val createdAt: String,
+    val hasClaimedDailyBonus: Boolean
 )
 
 class AlreadyClaimedException(message: String) : Exception(message)

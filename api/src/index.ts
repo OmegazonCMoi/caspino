@@ -138,12 +138,15 @@ app.get("/me", authenticateJWT, async (req: Request, res: Response) => {
 
     if (!user) return res.sendStatus(404)
 
+    const dailyBonusClaim = await getLastDailyBonus(user.id)
+
     res.status(200).json({
       user: {
         username: user.username,
         email: user.email,
         balance: Number(user.balance),
         createdAt: user.created_at,
+        hasClaimedDailyBonus: !!dailyBonusClaim,
       },
     })
   } catch (error) {
