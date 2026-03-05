@@ -41,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
@@ -65,7 +64,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
-import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.seconds
 import kotlin.random.Random
 
@@ -477,14 +475,11 @@ fun RouletteScreen(
                                     val (centerX, centerY) = multiBetCenterPx(
                                         numbers, cellWidthPx, cellHeightPx
                                     )
+                                    val offsetX = with(density) { (centerX - badgeRadiusPx).toDp() }
+                                    val offsetY = with(density) { (centerY - badgeRadiusPx).toDp() }
                                     Box(
                                         modifier = Modifier
-                                            .offset {
-                                                IntOffset(
-                                                    (centerX - badgeRadiusPx).roundToInt(),
-                                                    (centerY - badgeRadiusPx).roundToInt()
-                                                )
-                                            }
+                                            .offset(x = offsetX, y = offsetY)
                                             .size(badgeSizeDp)
                                             .background(Color(0xFFFF9800), CircleShape)
                                             .border(1.5.dp, Color.White, CircleShape),
