@@ -1,30 +1,34 @@
 package com.example.mobile.ui.screens
 
 import android.content.Intent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -32,15 +36,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
 import com.example.mobile.ui.components.AppButton
-import com.example.mobile.ui.components.AppCard
-import com.example.mobile.ui.components.BetInput
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BalanceHeader
 import com.example.mobile.ui.components.AppBottomBar
@@ -53,11 +58,6 @@ import com.example.mobile.ui.components.RouletteWheel
 import com.example.mobile.ui.components.SpinCommand
 import com.example.mobile.ui.components.ConfettiOverlay
 import com.example.mobile.ui.theme.AccentBlue
-import com.example.mobile.ui.theme.DarkBorder
-import com.example.mobile.ui.theme.DarkSurface
-import com.example.mobile.ui.theme.DarkTextPrimary
-import com.example.mobile.ui.theme.DarkTextSecondary
-import androidx.compose.ui.platform.LocalContext
 import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.network.PunchlineApi
 import kotlinx.coroutines.launch
@@ -65,26 +65,147 @@ import androidx.compose.runtime.rememberCoroutineScope
 import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.seconds
 import kotlin.random.Random
 
+private val chipDenominations = listOf(10, 25, 50, 100, 500)
+
+private fun chipColor(value: Int): Color = when (value) {
+    10 -> Color(0xFF1565C0)
+    25 -> Color(0xFF2E7D32)
+    50 -> Color(0xFFE65100)
+    100 -> Color(0xFF212121)
+    500 -> Color(0xFF6A1B9A)
+    else -> Color.Gray
+}
+
+private fun numberAt(row: Int, col: Int) = row * 3 + col + 1
+
+private const val EDGE_THRESHOLD = 0.28f
+
+/**
+ * Determine bet target from tap position on the 12x3 grid.
+ * Returns sorted list of numbers: size 1=straight, 2=split, 3=street, 4=corner.
+ */
+private fun determineBetTarget(
+    tapX: Float,
+    tapY: Float,
+    cellWidthPx: Float,
+    cellHeightPx: Float
+): List<Int> {
+    val col = (tapX / cellWidthPx).toInt().coerceIn(0, 2)
+    val row = (tapY / cellHeightPx).toInt().coerceIn(0, 11)
+    val xFrac = (tapX - col * cellWidthPx) / cellWidthPx
+    val yFrac = (tapY - row * cellHeightPx) / cellHeightPx
+
+    val nearLeft = xFrac < EDGE_THRESHOLD
+    val nearRight = xFrac > (1 - EDGE_THRESHOLD)
+    val nearTop = yFrac < EDGE_THRESHOLD
+    val nearBottom = yFrac > (1 - EDGE_THRESHOLD)
+
+    // Corner (carre) - 4 numbers
+    if (nearTop && nearLeft && row > 0 && col > 0) {
+        return listOf(
+            numberAt(row - 1, col - 1), numberAt(row - 1, col),
+            numberAt(row, col - 1), numberAt(row, col)
+        ).sorted()
+    }
+    if (nearTop && nearRight && row > 0 && col < 2) {
+        return listOf(
+            numberAt(row - 1, col), numberAt(row - 1, col + 1),
+            numberAt(row, col), numberAt(row, col + 1)
+        ).sorted()
+    }
+    if (nearBottom && nearLeft && row < 11 && col > 0) {
+        return listOf(
+            numberAt(row, col - 1), numberAt(row, col),
+            numberAt(row + 1, col - 1), numberAt(row + 1, col)
+        ).sorted()
+    }
+    if (nearBottom && nearRight && row < 11 && col < 2) {
+        return listOf(
+            numberAt(row, col), numberAt(row, col + 1),
+            numberAt(row + 1, col), numberAt(row + 1, col + 1)
+        ).sorted()
+    }
+
+    // Horizontal split (cheval) - between left-right neighbours
+    if (nearLeft && !nearTop && !nearBottom && col > 0) {
+        return listOf(numberAt(row, col - 1), numberAt(row, col)).sorted()
+    }
+    if (nearRight && !nearTop && !nearBottom && col < 2) {
+        return listOf(numberAt(row, col), numberAt(row, col + 1)).sorted()
+    }
+
+    // Street (transversale) - left edge of column 0
+    if (nearLeft && !nearTop && !nearBottom && col == 0) {
+        return listOf(numberAt(row, 0), numberAt(row, 1), numberAt(row, 2)).sorted()
+    }
+
+    // Vertical split (cheval) - between top-bottom neighbours
+    if (nearTop && !nearLeft && !nearRight && row > 0) {
+        return listOf(numberAt(row - 1, col), numberAt(row, col)).sorted()
+    }
+    if (nearBottom && !nearLeft && !nearRight && row < 11) {
+        return listOf(numberAt(row, col), numberAt(row + 1, col)).sorted()
+    }
+
+    // Straight bet
+    return listOf(numberAt(row, col))
+}
+
+/** Compute overlay badge center position in pixels for a multi-number bet. */
+private fun multiBetCenterPx(
+    numbers: List<Int>,
+    cellWidthPx: Float,
+    cellHeightPx: Float
+): Pair<Float, Float> {
+    if (numbers.size == 3) {
+        // Street: left edge of the row
+        val row = (numbers.min() - 1) / 3
+        return Pair(0f, row * cellHeightPx + cellHeightPx / 2f)
+    }
+    var centerX = 0f
+    var centerY = 0f
+    numbers.forEach { number ->
+        val row = (number - 1) / 3
+        val col = (number - 1) % 3
+        centerX += col * cellWidthPx + cellWidthPx / 2f
+        centerY += row * cellHeightPx + cellHeightPx / 2f
+    }
+    return Pair(centerX / numbers.size, centerY / numbers.size)
+}
+
+private fun multiBetMultiplier(count: Int): Int = when (count) {
+    2 -> 18   // split
+    3 -> 12   // street
+    4 -> 9    // corner
+    else -> 0
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RouletteScreen(
     onBackClick: () -> Unit
 ) {
-    var spinCommandId by remember { mutableStateOf(0) }
+    var spinCommandId by remember { mutableIntStateOf(0) }
     var currentSpinCommand by remember { mutableStateOf<SpinCommand?>(null) }
 
-    // Pour harmoniser avec la SlotMachine, on affiche un solde et une mise simple
     var balance by BalanceState.balance
-    var bet by remember { mutableStateOf(10) }
     var winningNumber by remember { mutableStateOf<Int?>(null) }
     var forcedNumberText by remember { mutableStateOf("") }
-    var selectedNumbers by remember { mutableStateOf(setOf<Int>()) }
-    var selectedGroups by remember { mutableStateOf(setOf<String>()) }
     var isBettingPhase by remember { mutableStateOf(true) }
     var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
     var punchline by remember { mutableStateOf<String?>(null) }
+
+    // Chip-based betting state
+    var numberBets by remember { mutableStateOf(mapOf<Int, Int>()) }
+    var groupBets by remember { mutableStateOf(mapOf<String, Int>()) }
+    var multiBets by remember { mutableStateOf(mapOf<String, Int>()) }
+    var selectedChipValue by remember { mutableIntStateOf(10) }
+
+    val totalBet = numberBets.values.sum() + groupBets.values.sum() + multiBets.values.sum()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -95,6 +216,7 @@ fun RouletteScreen(
                 .onSuccess { punchline = it }
         }
     }
+    val density = LocalDensity.current
 
     val bottomBarItems = listOf(
         BottomBarItem(
@@ -114,18 +236,75 @@ fun RouletteScreen(
         }
     )
 
-    fun requestSpin(forcedNumber: Int? = null) {
-        // Ici tu pourras plus tard brancher la logique de gains/pertes avec balance/bet
-        val targetNumber = forcedNumber ?: Random.nextInt(0, 37)
-        spinCommandId++
-        currentSpinCommand = SpinCommand(
-            id = spinCommandId,
-            number = targetNumber
-        )
+    // --- Bet helpers ---
+    fun addNumberBet(number: Int) {
+        if (balance >= selectedChipValue) {
+            numberBets = numberBets + (number to ((numberBets[number] ?: 0) + selectedChipValue))
+            BalanceState.addPinos(-selectedChipValue)
+        }
     }
 
-    // Quand on passe en phase "roue", on lance automatiquement un spin
-    // (retour à la phase de mise géré manuellement par l'utilisateur).
+    fun removeNumberBet(number: Int) {
+        val current = numberBets[number] ?: return
+        val chip = chipDenominations.sortedDescending().firstOrNull { it <= current } ?: return
+        val remaining = current - chip
+        numberBets = if (remaining <= 0) numberBets - number else numberBets + (number to remaining)
+        BalanceState.addPinos(chip)
+    }
+
+    fun addGroupBet(groupId: String) {
+        if (balance >= selectedChipValue) {
+            groupBets = groupBets + (groupId to ((groupBets[groupId] ?: 0) + selectedChipValue))
+            BalanceState.addPinos(-selectedChipValue)
+        }
+    }
+
+    fun removeGroupBet(groupId: String) {
+        val current = groupBets[groupId] ?: return
+        val chip = chipDenominations.sortedDescending().firstOrNull { it <= current } ?: return
+        val remaining = current - chip
+        groupBets = if (remaining <= 0) groupBets - groupId else groupBets + (groupId to remaining)
+        BalanceState.addPinos(chip)
+    }
+
+    fun addMultiBet(numbers: List<Int>) {
+        if (balance >= selectedChipValue) {
+            val key = numbers.sorted().joinToString("_")
+            multiBets = multiBets + (key to ((multiBets[key] ?: 0) + selectedChipValue))
+            BalanceState.addPinos(-selectedChipValue)
+        }
+    }
+
+    fun removeMultiBet(numbers: List<Int>) {
+        val key = numbers.sorted().joinToString("_")
+        val current = multiBets[key] ?: return
+        val chip = chipDenominations.sortedDescending().firstOrNull { it <= current } ?: return
+        val remaining = current - chip
+        multiBets = if (remaining <= 0) multiBets - key else multiBets + (key to remaining)
+        BalanceState.addPinos(chip)
+    }
+
+    fun clearAllBets() {
+        BalanceState.addPinos(totalBet)
+        numberBets = emptyMap()
+        groupBets = emptyMap()
+        multiBets = emptyMap()
+    }
+
+    fun handleGridTap(numbers: List<Int>, isRemove: Boolean) {
+        if (numbers.size == 1) {
+            if (isRemove) removeNumberBet(numbers[0]) else addNumberBet(numbers[0])
+        } else {
+            if (isRemove) removeMultiBet(numbers) else addMultiBet(numbers)
+        }
+    }
+
+    fun requestSpin(forcedNumber: Int? = null) {
+        val targetNumber = forcedNumber ?: Random.nextInt(0, 37)
+        spinCommandId++
+        currentSpinCommand = SpinCommand(id = spinCommandId, number = targetNumber)
+    }
+
     LaunchedEffect(isBettingPhase) {
         if (!isBettingPhase) {
             val forced = forcedNumberText.toIntOrNull()?.takeIf { it in 0..36 }
@@ -133,22 +312,10 @@ fun RouletteScreen(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            topBar = {
-                AppHeader(
-                    title = "Roulette",
-                    onBackClick = onBackClick
-                )
-            },
-            bottomBar = {
-                AppBottomBar(
-                    items = bottomBarItems,
-                    selectedIndex = 0
-                )
-            }
+            topBar = { AppHeader(title = "Roulette", onBackClick = onBackClick) },
+            bottomBar = { AppBottomBar(items = bottomBarItems, selectedIndex = 0) }
         ) { innerPadding ->
             BoxWithConstraints(
                 modifier = Modifier
@@ -182,360 +349,495 @@ fun RouletteScreen(
                 // === Étape 1 : mise (plein écran) ===
                 if (isBettingPhase) {
                     Column(
+                    BalanceHeader(
+                        amount = balance,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Choisissez votre mise",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = DarkTextPrimary
-                        )
+                            .padding(top = 8.dp)
+                            .align(Alignment.Start)
+                    )
 
-                        // Disposition : 0 sur sa propre ligne, puis 1–36 en grille 4x9
-                        val zeroNumber = 0
-                        val numbers = (1..36).toList()
-                        val rows = numbers.chunked(9)
+                    Spacer(modifier = Modifier.height(2.dp))
 
-                        // Ligne dédiée pour le 0
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            val isSelected = selectedNumbers.contains(zeroNumber)
-                            val baseColor = Color(0xFF1B5E20) // vert pour le 0
-
-                            RouletteBetChip(
-                                label = zeroNumber.toString(),
-                                isSelected = isSelected,
-                                baseColor = baseColor,
-                                onClick = {
-                                    selectedNumbers = if (isSelected) {
-                                        selectedNumbers - zeroNumber
-                                    } else {
-                                        selectedNumbers + zeroNumber
-                                    }
-
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Grille 6x6 pour 1–36 (évite une dernière ligne avec seulement 2 cases)
-                        rows.forEach { rowNumbers ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                rowNumbers.forEach { number ->
-                                    val isSelected = selectedNumbers.contains(number)
-
-                                    val baseColor = when {
-                                        isRouletteRed(number) -> Color(0xFFB71C1C) // rouge
-                                        else -> Color(0xFF111111) // noir
-                                    }
-
-                                    RouletteBetChip(
-                                        label = number.toString(),
-                                        isSelected = isSelected,
-                                        baseColor = baseColor,
-                                        onClick = {
-                                            selectedNumbers = if (isSelected) {
-                                                selectedNumbers - number
-                                            } else {
-                                                selectedNumbers + number
-                                            }
-
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Ligne de mises spéciales (douzaines, pair/impair, etc.)
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                    if (isBettingPhase) {
+                        // ============ BETTING PHASE ============
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            // Douzaines
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            Text(
+                                text = "Placez vos mises",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+
+                            Text(
+                                text = "Tap: placer  /  Appui long: retirer",
+                                fontSize = 11.sp,
+                                color = Color(0xFF888888)
+                            )
+
+                            // Zero cell (separate)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(36.dp)
+                                    .border(1.dp, Color(0xFF2E7D32), RoundedCornerShape(4.dp, 4.dp, 0.dp, 0.dp))
+                                    .background(Color(0xFF1B5E20), RoundedCornerShape(4.dp, 4.dp, 0.dp, 0.dp))
+                                    .combinedClickable(
+                                        onClick = { addNumberBet(0) },
+                                        onLongClick = { removeNumberBet(0) }
+                                    ),
+                                contentAlignment = Alignment.Center
                             ) {
-                                listOf("1ère 12", "2ème 12", "3ème 12").forEach { label ->
-                                    val id = "D_$label"
-                                    val isSelected = selectedGroups.contains(id)
-
-                                    RouletteBetChip(
-                                        label = label,
-                                        isSelected = isSelected,
-                                        baseColor = Color(0xFF263238),
-                                        onClick = {
-                                            selectedGroups = if (isSelected) {
-                                                selectedGroups - id
-                                            } else {
-                                                selectedGroups + id
-                                            }
-
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                Text("0", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                val betOnZero = numberBets[0]
+                                if (betOnZero != null && betOnZero > 0) {
+                                    BetBadge(amount = betOnZero, modifier = Modifier.align(Alignment.TopEnd))
                                 }
                             }
 
-                            // Pair / Impair / 1-18 / 19-36 / Rouge / Noir
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                val specialBets = listOf(
-                                    "PAIR" to "Pair",
-                                    "IMPAIR" to "Impair",
-                                    "LOW" to "1-18",
-                                    "HIGH" to "19-36",
-                                    "RED" to "Rouge",
-                                    "BLACK" to "Noir"
-                                )
+                            // Main 12x3 grid with touch detection
+                            val cellHeightDp = 36.dp
+                            val badgeSizeDp = 24.dp
+                            val badgeRadiusPx = with(density) { 12.dp.toPx() }
 
-                                specialBets.forEach { (id, label) ->
-                                    val isSelected = selectedGroups.contains(id)
-                                    val baseColor = when (id) {
-                                        "RED" -> Color(0xFFB71C1C)
-                                        "BLACK" -> Color(0xFF111111)
-                                        else -> Color(0xFF263238)
-                                    }
-
-                                    RouletteBetChip(
-                                        label = label,
-                                        isSelected = isSelected,
-                                        baseColor = baseColor,
-                                        onClick = {
-                                            selectedGroups = if (isSelected) {
-                                                selectedGroups - id
-                                            } else {
-                                                selectedGroups + id
+                            BoxWithConstraints(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(cellHeightDp * 12)
+                                    .pointerInput(Unit) {
+                                        val cellWidthPx = size.width / 3f
+                                        val cellHeightPx = size.height / 12f
+                                        detectTapGestures(
+                                            onTap = { offset ->
+                                                val target = determineBetTarget(
+                                                    offset.x, offset.y, cellWidthPx, cellHeightPx
+                                                )
+                                                handleGridTap(target, isRemove = false)
+                                            },
+                                            onLongPress = { offset ->
+                                                val target = determineBetTarget(
+                                                    offset.x, offset.y, cellWidthPx, cellHeightPx
+                                                )
+                                                handleGridTap(target, isRemove = true)
                                             }
+                                        )
+                                    }
+                            ) {
+                                val gridWidthPx = constraints.maxWidth.toFloat()
+                                val gridHeightPx = constraints.maxHeight.toFloat()
+                                val cellWidthPx = gridWidthPx / 3f
+                                val cellHeightPx = gridHeightPx / 12f
 
-                                            // ici on ne met plus à jour de texte de résultat,
-                                            // seulement les sélections de mises
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
+                                // Draw grid cells
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    repeat(12) { rowIndex ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(cellHeightDp)
+                                        ) {
+                                            repeat(3) { colIndex ->
+                                                val number = rowIndex * 3 + colIndex + 1
+                                                val isRed = isRouletteRed(number)
+                                                val baseColor = if (isRed) Color(0xFFB71C1C) else Color(0xFF212121)
+                                                val borderColor = if (isRed) Color(0xFF8B0000) else Color(0xFF444444)
 
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        BetInput(
-                            bet = bet,
-                            onBetChange = { bet = it },
-                            maxBet = balance
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Bouton pour passer à l'étape roue
-                        AppButton(
-                            text = "Valider les mises",
-                            onClick = {
-                                if (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) {
-                                    val totalStake = bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1)
-                                    if (balance >= totalStake) {
-                                        BalanceState.addPinos(-totalStake)
-                                        isBettingPhase = false
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .border(0.5.dp, borderColor)
+                                                        .background(baseColor),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = number.toString(),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color.White
+                                                    )
+                                                    val betAmount = numberBets[number]
+                                                    if (betAmount != null && betAmount > 0) {
+                                                        BetBadge(
+                                                            amount = betAmount,
+                                                            modifier = Modifier.align(Alignment.TopEnd)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                            },
-                            variant = ButtonVariant.Primary,
-                            size = ButtonSize.Medium,
-                            enabled = (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) && balance >= bet * (selectedNumbers.size + selectedGroups.size).coerceAtLeast(1),
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                } else {
-                    // === Étape 2 : roue + résultat ===
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .clip(RoundedCornerShape(16.dp)),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(wheelHeight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            RouletteWheel(
-                                isConnected = true,
-                                externalSpinCommand = currentSpinCommand,
-                                onExternalSpinConsumed = {
-                                    currentSpinCommand = null
-                                },
-                                onNumberSelected = { number ->
-                                    winningNumber = number
 
-                                    // Calcul des gains et crédit des pinos (appelé quand la roue a fini de tourner)
-                                    val payout = calculateRoulettePayout(
-                                        selectedNumbers = selectedNumbers,
-                                        selectedGroups = selectedGroups,
-                                        winningNumber = number,
-                                        betPerSelection = bet
+                                // Multi-bet overlay badges
+                                multiBets.forEach { (key, amount) ->
+                                    val numbers = key.split("_").map { it.toInt() }
+                                    val (centerX, centerY) = multiBetCenterPx(
+                                        numbers, cellWidthPx, cellHeightPx
                                     )
-                                    if (payout > 0) {
-                                        BalanceState.addPinos(payout)
-                                    }
-
-                                    // Déclenche les confettis uniquement si au moins une mise est gagnante
-                                    val hasWinningNumber = selectedNumbers.contains(number)
-                                    val hasWinningGroup = selectedGroups.any { isWinningGroup(it, number) }
-
-                                    if (hasWinningNumber || hasWinningGroup) {
-                                        val durationSec = 3.0
-                                        confettiParties = listOf(
-                                            Party(
-                                                angle = -45,
-                                                spread = 45,
-                                                position = Position.Relative(0.0, 0.26),
-                                                emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                                                fadeOutEnabled = true
-                                            ),
-                                            Party(
-                                                angle = -135,
-                                                spread = 45,
-                                                position = Position.Relative(1.0, 0.26),
-                                                emitter = Emitter(duration = durationSec.seconds).perSecond(30),
-                                                fadeOutEnabled = true
-                                            )
+                                    Box(
+                                        modifier = Modifier
+                                            .offset {
+                                                IntOffset(
+                                                    (centerX - badgeRadiusPx).roundToInt(),
+                                                    (centerY - badgeRadiusPx).roundToInt()
+                                                )
+                                            }
+                                            .size(badgeSizeDp)
+                                            .background(Color(0xFFFF9800), CircleShape)
+                                            .border(1.5.dp, Color.White, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = amount.toString(),
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
                                         )
                                     }
                                 }
-                            )
-                        }
+                            }
 
-                        // Afficher les mises sélectionnées sous forme de jetons non cliquables
-                        if (selectedNumbers.isNotEmpty() || selectedGroups.isNotEmpty()) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            // Dozens
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
-                                // Jetons pour les numéros choisis
-                                if (selectedNumbers.isNotEmpty()) {
-                                    val rows = selectedNumbers.sorted().chunked(8)
-                                    rows.forEach { rowNumbers ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            rowNumbers.forEach { number ->
-                                                val baseColor = when {
-                                                    number == 0 -> Color(0xFF1B5E20) // vert
-                                                    isRouletteRed(number) -> Color(0xFFB71C1C) // rouge
-                                                    else -> Color(0xFF111111) // noir
-                                                }
-                                                val isWinner = winningNumber != null && winningNumber == number
-                                                RouletteBetChipStatic(
-                                                    label = number.toString(),
-                                                    baseColor = baseColor,
-                                                    isWinner = isWinner,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
+                                listOf(
+                                    "D_1ere 12" to "1ere 12",
+                                    "D_2eme 12" to "2eme 12",
+                                    "D_3eme 12" to "3eme 12"
+                                ).forEach { (groupId, label) ->
+                                    val betAmount = groupBets[groupId]
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(36.dp)
+                                            .border(1.dp, Color(0xFF37474F), RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF263238), RoundedCornerShape(4.dp))
+                                            .combinedClickable(
+                                                onClick = { addGroupBet(groupId) },
+                                                onLongClick = { removeGroupBet(groupId) }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                                        if (betAmount != null && betAmount > 0) {
+                                            BetBadge(amount = betAmount, modifier = Modifier.align(Alignment.TopEnd))
                                         }
                                     }
                                 }
+                            }
 
-                                // Jetons pour les groupes spéciaux sélectionnés
-                                if (selectedGroups.isNotEmpty()) {
-                                    // Douzaines
-                                    val dozenLabels = listOf("1ère 12", "2ème 12", "3ème 12")
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            // Special bets
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                listOf(
+                                    "LOW" to "1-18",
+                                    "PAIR" to "Pair",
+                                    "RED" to "Rouge",
+                                    "BLACK" to "Noir",
+                                    "IMPAIR" to "Impair",
+                                    "HIGH" to "19-36"
+                                ).forEach { (groupId, label) ->
+                                    val baseColor = when (groupId) {
+                                        "RED" -> Color(0xFFB71C1C)
+                                        "BLACK" -> Color(0xFF212121)
+                                        else -> Color(0xFF263238)
+                                    }
+                                    val borderColor = when (groupId) {
+                                        "RED" -> Color(0xFF8B0000)
+                                        "BLACK" -> Color(0xFF444444)
+                                        else -> Color(0xFF37474F)
+                                    }
+                                    val betAmount = groupBets[groupId]
+
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(36.dp)
+                                            .border(1.dp, borderColor, RoundedCornerShape(4.dp))
+                                            .background(baseColor, RoundedCornerShape(4.dp))
+                                            .combinedClickable(
+                                                onClick = { addGroupBet(groupId) },
+                                                onLongClick = { removeGroupBet(groupId) }
+                                            ),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        dozenLabels.forEach { label ->
-                                            val id = "D_$label"
-                                            if (selectedGroups.contains(id)) {
-                                                val isWinner = winningNumber != null && isWinningGroup(id, winningNumber!!)
-                                                RouletteBetChipStatic(
-                                                    label = label,
-                                                    baseColor = Color(0xFF263238),
-                                                    isWinner = isWinner,
-                                                    modifier = Modifier.weight(1f)
+                                        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                                        if (betAmount != null && betAmount > 0) {
+                                            BetBadge(amount = betAmount, modifier = Modifier.align(Alignment.TopEnd))
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Chip selector
+                            Text(
+                                text = "Jeton : $selectedChipValue",
+                                fontSize = 13.sp,
+                                color = Color(0xFFB0B0B0)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                            ) {
+                                chipDenominations.forEach { denomination ->
+                                    val isSelected = selectedChipValue == denomination
+                                    val color = chipColor(denomination)
+                                    val chipSize = if (isSelected) 48.dp else 40.dp
+                                    val borderWidth = if (isSelected) 3.dp else 1.dp
+                                    val borderCol = if (isSelected) Color.White else color.copy(alpha = 0.5f)
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(chipSize)
+                                            .border(borderWidth, borderCol, CircleShape)
+                                            .background(color, CircleShape)
+                                            .clickable { selectedChipValue = denomination },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = denomination.toString(),
+                                            fontSize = if (isSelected) 13.sp else 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            if (totalBet > 0) {
+                                Text(
+                                    text = "Mise totale : $totalBet",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
+
+                            // Action buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (totalBet > 0) {
+                                    AppButton(
+                                        text = "Effacer",
+                                        onClick = { clearAllBets() },
+                                        variant = ButtonVariant.Secondary,
+                                        size = ButtonSize.Medium,
+                                        enabled = true,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                AppButton(
+                                    text = "Valider les mises",
+                                    onClick = { if (totalBet > 0) isBettingPhase = false },
+                                    variant = ButtonVariant.Primary,
+                                    size = ButtonSize.Medium,
+                                    enabled = totalBet > 0,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    } else {
+                        // ============ WHEEL + RESULT PHASE ============
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp)),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(wheelHeight),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                RouletteWheel(
+                                    isConnected = true,
+                                    externalSpinCommand = currentSpinCommand,
+                                    onExternalSpinConsumed = { currentSpinCommand = null },
+                                    onNumberSelected = { number ->
+                                        winningNumber = number
+
+                                        val payout = calculateRoulettePayout(
+                                            numberBets = numberBets,
+                                            groupBets = groupBets,
+                                            multiBets = multiBets,
+                                            winningNumber = number
+                                        )
+                                        if (payout > 0) {
+                                            BalanceState.addPinos(payout)
+                                        }
+
+                                        val hasWin = numberBets.containsKey(number)
+                                                || groupBets.keys.any { isWinningGroup(it, number) }
+                                                || multiBets.keys.any { key ->
+                                            key.split("_").map { it.toInt() }.contains(number)
+                                        }
+
+                                        if (hasWin) {
+                                            val durationSec = 3.0
+                                            confettiParties = listOf(
+                                                Party(
+                                                    angle = -45, spread = 45,
+                                                    position = Position.Relative(0.0, 0.26),
+                                                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                                                    fadeOutEnabled = true
+                                                ),
+                                                Party(
+                                                    angle = -135, spread = 45,
+                                                    position = Position.Relative(1.0, 0.26),
+                                                    emitter = Emitter(duration = durationSec.seconds).perSecond(30),
+                                                    fadeOutEnabled = true
                                                 )
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+
+                            // Bet summary
+                            if (numberBets.isNotEmpty() || multiBets.isNotEmpty() || groupBets.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    // Number bets
+                                    if (numberBets.isNotEmpty()) {
+                                        val sorted = numberBets.entries.sortedBy { it.key }
+                                        sorted.chunked(6).forEach { rowEntries ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                rowEntries.forEach { (number, amount) ->
+                                                    val baseColor = when {
+                                                        number == 0 -> Color(0xFF1B5E20)
+                                                        isRouletteRed(number) -> Color(0xFFB71C1C)
+                                                        else -> Color(0xFF212121)
+                                                    }
+                                                    val isWinner = winningNumber == number
+                                                    RouletteBetChipStatic(
+                                                        label = "$number\n$amount",
+                                                        baseColor = baseColor,
+                                                        isWinner = isWinner,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+                                                repeat(6 - rowEntries.size) {
+                                                    Spacer(modifier = Modifier.weight(1f))
+                                                }
                                             }
                                         }
                                     }
 
-                                    // Pair / Impair / 1-18 / 19-36 / Rouge / Noir
-                                    val specialBets = listOf(
-                                        "PAIR" to "Pair",
-                                        "IMPAIR" to "Impair",
-                                        "LOW" to "1-18",
-                                        "HIGH" to "19-36",
-                                        "RED" to "Rouge",
-                                        "BLACK" to "Noir"
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        specialBets.forEach { (id, label) ->
-                                            if (selectedGroups.contains(id)) {
-                                                val baseColor = when (id) {
-                                                    "RED" -> Color(0xFFB71C1C)
-                                                    "BLACK" -> Color(0xFF111111)
-                                                    else -> Color(0xFF263238)
+                                    // Multi bets (split/street/corner)
+                                    if (multiBets.isNotEmpty()) {
+                                        multiBets.entries.chunked(4).forEach { rowEntries ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                rowEntries.forEach { (key, amount) ->
+                                                    val numbers = key.split("_").map { it.toInt() }
+                                                    val label = numbers.joinToString("-")
+                                                    val isWinner = winningNumber != null && winningNumber in numbers
+                                                    val typeLabel = when (numbers.size) {
+                                                        2 -> "Cheval"
+                                                        3 -> "Trans."
+                                                        4 -> "Carre"
+                                                        else -> ""
+                                                    }
+                                                    RouletteBetChipStatic(
+                                                        label = "$typeLabel\n$label\n$amount",
+                                                        baseColor = Color(0xFF37474F),
+                                                        isWinner = isWinner,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
                                                 }
-                                                val isWinner = winningNumber != null && isWinningGroup(id, winningNumber!!)
-                                                RouletteBetChipStatic(
-                                                    label = label,
-                                                    baseColor = baseColor,
-                                                    isWinner = isWinner,
-                                                    modifier = Modifier.weight(1f)
-                                                )
+                                                repeat(4 - rowEntries.size) {
+                                                    Spacer(modifier = Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Group bets
+                                    if (groupBets.isNotEmpty()) {
+                                        val groupLabels = mapOf(
+                                            "D_1ere 12" to "1ere 12", "D_2eme 12" to "2eme 12",
+                                            "D_3eme 12" to "3eme 12",
+                                            "PAIR" to "Pair", "IMPAIR" to "Impair",
+                                            "LOW" to "1-18", "HIGH" to "19-36",
+                                            "RED" to "Rouge", "BLACK" to "Noir"
+                                        )
+                                        groupBets.entries.chunked(4).forEach { rowEntries ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                rowEntries.forEach { (groupId, amount) ->
+                                                    val label = groupLabels[groupId] ?: groupId
+                                                    val baseColor = when (groupId) {
+                                                        "RED" -> Color(0xFFB71C1C)
+                                                        "BLACK" -> Color(0xFF212121)
+                                                        else -> Color(0xFF263238)
+                                                    }
+                                                    val isWinner = winningNumber != null && isWinningGroup(groupId, winningNumber!!)
+                                                    RouletteBetChipStatic(
+                                                        label = "$label\n$amount",
+                                                        baseColor = baseColor,
+                                                        isWinner = isWinner,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+                                                repeat(4 - rowEntries.size) {
+                                                    Spacer(modifier = Modifier.weight(1f))
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Bouton pour revenir manuellement à l'étape de mise
-                        AppButton(
-                            text = "Nouvelle mise",
-                            onClick = {
-                                isBettingPhase = true
-                                // on garde les sélections et les mises
-                            },
-                            variant = ButtonVariant.Primary,
-                            size = ButtonSize.Medium,
-                            enabled = true,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                            AppButton(
+                                text = "Nouvelle mise",
+                                onClick = {
+                                    isBettingPhase = true
+                                    numberBets = emptyMap()
+                                    groupBets = emptyMap()
+                                    multiBets = emptyMap()
+                                    winningNumber = null
+                                },
+                                variant = ButtonVariant.Primary,
+                                size = ButtonSize.Medium,
+                                enabled = true,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
-                }
                 }
             }
         }
 
-        // Overlay de confettis au premier plan
         ConfettiOverlay(
             parties = confettiParties,
             onFinished = { confettiParties = emptyList() },
@@ -544,95 +846,25 @@ fun RouletteScreen(
     }
 }
 
-// Détermine si un numéro de roulette est rouge (roulette européenne)
-private fun isRouletteRed(number: Int): Boolean {
-    return number in setOf(
-        1, 3, 5, 7, 9,
-        12, 14, 16, 18,
-        19, 21, 23, 25, 27,
-        30, 32, 34, 36
-    )
-}
-
-// Calcule le gain total roulette (mise rendue + gains) pour le numéro gagnant
-private fun calculateRoulettePayout(
-    selectedNumbers: Set<Int>,
-    selectedGroups: Set<String>,
-    winningNumber: Int,
-    betPerSelection: Int
-): Int {
-    var payout = 0
-    if (winningNumber in selectedNumbers) {
-        payout += 36 * betPerSelection // plein : 35:1 + mise
-    }
-    selectedGroups.forEach { groupId ->
-        if (isWinningGroup(groupId, winningNumber)) {
-            payout += if (groupId.startsWith("D_")) 3 * betPerSelection else 2 * betPerSelection // douzaine 2:1, autres 1:1
-        }
-    }
-    return payout
-}
-
-// Vérifie si un groupe de mise est gagnant pour un numéro donné
-private fun isWinningGroup(groupId: String, number: Int): Boolean {
-    if (number !in 0..36) return false
-    return when (groupId) {
-        "PAIR" -> number != 0 && number % 2 == 0
-        "IMPAIR" -> number % 2 == 1
-        "LOW" -> number in 1..18
-        "HIGH" -> number in 19..36
-        "RED" -> isRouletteRed(number)
-        "BLACK" -> number != 0 && !isRouletteRed(number)
-        "D_1ère 12" -> number in 1..12
-        "D_2ème 12" -> number in 13..24
-        "D_3ème 12" -> number in 25..36
-        else -> false
-    }
-}
+// --- Composables ---
 
 @Composable
-fun RouletteBetChip(
-    label: String,
-    isSelected: Boolean,
-    baseColor: Color,
-    onClick: () -> Unit,
+private fun BetBadge(
+    amount: Int,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(8.dp)
-    // Fond beaucoup plus marqué quand sélectionné, très atténué sinon
-    val backgroundColor = if (isSelected) {
-        // Cas particulier pour le noir : éclaircir un peu la case sélectionnée
-        if (baseColor == Color(0xFF111111)) {
-            Color(0xFF333333)
-        } else {
-            baseColor
-        }
-    } else {
-        baseColor.copy(alpha = 0.25f)
-    }
-    // Bordure = même couleur que la case, légèrement plus foncée
-    val darkFactor = if (isSelected) 0.8f else 0.6f
-    val borderColor = if (baseColor == Color(0xFF111111)) {
-        // cas particulier pour le noir : éclaircir un peu pour la rendre visible
-        Color(0xFF444444)
-    } else {
-        darkenColor(baseColor, darkFactor)
-    }
-
     Box(
         modifier = modifier
-            .height(32.dp)
-            .border(1.dp, borderColor, shape)
-            .background(backgroundColor, shape)
-            .clickable(onClick = onClick),
+            .padding(2.dp)
+            .background(Color(0xFFFF9800), CircleShape)
+            .padding(horizontal = 4.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = label,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.White,
-            textAlign = TextAlign.Center
+            text = amount.toString(),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
     }
 }
@@ -645,14 +877,10 @@ fun RouletteBetChipStatic(
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(8.dp)
-    val backgroundColor = if (isWinner) {
-        baseColor.copy(alpha = 1.0f)
-    } else {
-        baseColor.copy(alpha = 0.9f)
-    }
+    val backgroundColor = if (isWinner) baseColor else baseColor.copy(alpha = 0.9f)
     val borderColor = if (isWinner) {
         AccentBlue
-    } else if (baseColor == Color(0xFF111111)) {
+    } else if (baseColor == Color(0xFF212121)) {
         Color(0xFF444444)
     } else {
         darkenColor(baseColor, 0.75f)
@@ -660,29 +888,84 @@ fun RouletteBetChipStatic(
 
     Box(
         modifier = modifier
-            .height(32.dp)
+            .height(44.dp)
             .border(2.dp, borderColor, shape)
             .background(backgroundColor, shape),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            fontSize = 13.sp,
+            fontSize = 10.sp,
             fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
             color = Color.White,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            lineHeight = 12.sp
         )
     }
 }
 
-// Assombrit légèrement une couleur (même teinte, plus foncée)
-private fun darkenColor(color: Color, factor: Float): Color {
-    val f = factor.coerceIn(0f, 1f)
-    return Color(
-        red = (color.red * f).coerceIn(0f, 1f),
-        green = (color.green * f).coerceIn(0f, 1f),
-        blue = (color.blue * f).coerceIn(0f, 1f),
-        alpha = color.alpha
+// --- Utility functions ---
+
+private fun isRouletteRed(number: Int): Boolean {
+    return number in setOf(
+        1, 3, 5, 7, 9,
+        12, 14, 16, 18,
+        19, 21, 23, 25, 27,
+        30, 32, 34, 36
     )
 }
 
+private fun calculateRoulettePayout(
+    numberBets: Map<Int, Int>,
+    groupBets: Map<String, Int>,
+    multiBets: Map<String, Int>,
+    winningNumber: Int
+): Int {
+    var payout = 0
+
+    // Straight bets: 36x
+    numberBets[winningNumber]?.let { payout += 36 * it }
+
+    // Group bets
+    groupBets.forEach { (groupId, amount) ->
+        if (isWinningGroup(groupId, winningNumber)) {
+            payout += if (groupId.startsWith("D_")) 3 * amount else 2 * amount
+        }
+    }
+
+    // Multi-number bets (split/street/corner)
+    multiBets.forEach { (key, amount) ->
+        val numbers = key.split("_").map { it.toInt() }
+        if (winningNumber in numbers) {
+            payout += multiBetMultiplier(numbers.size) * amount
+        }
+    }
+
+    return payout
+}
+
+private fun isWinningGroup(groupId: String, number: Int): Boolean {
+    if (number !in 0..36) return false
+    return when (groupId) {
+        "PAIR" -> number != 0 && number % 2 == 0
+        "IMPAIR" -> number % 2 == 1
+        "LOW" -> number in 1..18
+        "HIGH" -> number in 19..36
+        "RED" -> isRouletteRed(number)
+        "BLACK" -> number != 0 && !isRouletteRed(number)
+        "D_1ere 12" -> number in 1..12
+        "D_2eme 12" -> number in 13..24
+        "D_3eme 12" -> number in 25..36
+        else -> false
+    }
+}
+
+private fun darkenColor(color: Color, factor: Float): Color {
+    val clamped = factor.coerceIn(0f, 1f)
+    return Color(
+        red = (color.red * clamped).coerceIn(0f, 1f),
+        green = (color.green * clamped).coerceIn(0f, 1f),
+        blue = (color.blue * clamped).coerceIn(0f, 1f),
+        alpha = color.alpha
+    )
+}
