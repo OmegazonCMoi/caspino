@@ -759,12 +759,26 @@ fun RouletteScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text(
-                                    text = if (!wheelFinished) "Les jeux sont faits" else "Resultat",
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (!wheelFinished) "Les jeux sont faits" else "Resultat",
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    if (isResult && timeLeftSec > 0) {
+                                        Text(
+                                            text = "${timeLeftSec}s",
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF888888)
+                                        )
+                                    }
+                                }
 
                                 Box(
                                     modifier = Modifier.fillMaxWidth().height(wheelHeight),
@@ -881,13 +895,6 @@ fun RouletteScreen(
 
                                 }
 
-                                if (isResult) {
-                                    Text(
-                                        text = "Prochaine manche dans ${timeLeftSec}s",
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF888888)
-                                    )
-                                }
                             }
                         }
                     }
