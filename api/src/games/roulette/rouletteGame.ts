@@ -48,7 +48,7 @@ export class RouletteGame {
   }
 
   placeBet(bets: Bet[], ws: WebSocket) {
-    if (this.phase !== RoulettePhase.BETTING) {
+    if (this.phase !== RoulettePhase.BETTING && this.phase !== RoulettePhase.SPINNING) {
       throw new Error("Betting closed")
     }
 
