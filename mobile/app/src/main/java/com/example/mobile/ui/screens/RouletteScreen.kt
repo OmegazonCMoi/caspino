@@ -66,12 +66,10 @@ import com.example.mobile.ui.theme.AccentBlue
 import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.network.PunchlineApi
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import io.github.vinceglb.confettikit.core.Party
 import io.github.vinceglb.confettikit.core.Position
 import io.github.vinceglb.confettikit.core.emitter.Emitter
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.time.Duration.Companion.seconds
@@ -204,14 +202,14 @@ fun RouletteScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    val density = LocalDensity.current
+
     LaunchedEffect(Unit) {
         scope.launch {
             PunchlineApi.fetchPunchline("roulette")
                 .onSuccess { punchline = it }
         }
     }
-    val density = LocalDensity.current
-    val scope = rememberCoroutineScope()
 
     val confettiMediaPlayer = remember {
         MediaPlayer.create(context, R.raw.confetti_sound)
@@ -500,29 +498,16 @@ fun RouletteScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                // Solde (component animé réutilisable)
-                BalanceHeader(
-                    amount = balance,
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                        .align(Alignment.Start)
-                )
-
-                if (punchline != null) {
-                    CroupierPunchlineBanner(punchline!!)
-                }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                // === Étape 1 : mise (plein écran) ===
-                if (isBettingPhase) {
-                    Column(
                     BalanceHeader(
                         amount = balance,
                         modifier = Modifier
                             .padding(top = 8.dp)
                             .align(Alignment.Start)
                     )
+
+                    if (punchline != null) {
+                        CroupierPunchlineBanner(punchline!!)
+                    }
 
                     Spacer(modifier = Modifier.height(2.dp))
 
