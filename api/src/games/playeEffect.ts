@@ -12,10 +12,16 @@ export const playeEffect = (gains: number, bet: number): void => {
         });
     }
     else if (factor < 10) {
-        fetch("http://localhost:5701/plug/blink")
-        fetch("http://localhost:5701/siren/big")
+        fetch("http://localhost:5701/plug/blink", {
+            method: "POST"
+        })
+        fetch("http://localhost:5701/siren/big", {
+            method: "POST"
+        })
     }
     else {
-        fetch("http://localhost:5701/casino/jackpot")
+        fetch("http://localhost:5701/casino/jackpot", {
+            method: "POST"
+        })
     }
 }
