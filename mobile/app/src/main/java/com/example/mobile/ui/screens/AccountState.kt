@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.mobile.network.ApiClient
 import com.example.mobile.network.AuthApi
+import com.example.mobile.network.BlackjackApi
+import com.example.mobile.network.RouletteApi
+import com.example.mobile.network.SlotsApi
 import java.time.LocalDate
 
 object AccountState {
@@ -97,6 +100,9 @@ object AccountState {
     }
 
     fun logout() {
+        RouletteApi.disconnect()
+        BlackjackApi.disconnect()
+        SlotsApi.disconnect()
         isLoggedIn = false
         username = ""
         email = ""

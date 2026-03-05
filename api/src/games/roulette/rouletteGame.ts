@@ -6,11 +6,13 @@ import { playeEffect } from "../playeEffect.ts"
 export class RouletteGame {
   private phase: RoulettePhase = RoulettePhase.BETTING
   private phaseEndsAt = 0
+  private phaseDurationMs = 0
   private bets: Map<WebSocket, Bet[]> = new Map()
+  private lastWinningNumber: number | null = null
 
   constructor(
     private broadcast: (msg: any) => void,
-    private message: (ws: WebSocket, msg: any) => void,
+    private message: (ws: WebSocket, msg: any) => Promise<void>,
   ) {}
 
   start() {
@@ -20,10 +22,11 @@ export class RouletteGame {
   private setPhase(phase: RoulettePhase, durationMs: number) {
     this.phase = phase
     this.phaseEndsAt = Date.now() + durationMs
+    this.phaseDurationMs = durationMs
 
     this.broadcast({
       type: "PHASE_UPDATE",
-      payload: { phase, endsAt: this.phaseEndsAt },
+      payload: { phase, endsAt: this.phaseEndsAt, durationMs },
     })
 
     console.log(`Current phase: ${phase}`)
@@ -31,14 +34,14 @@ export class RouletteGame {
     setTimeout(() => this.nextPhase(), durationMs)
   }
 
-  private nextPhase() {
+  private async nextPhase() {
     switch (this.phase) {
       case RoulettePhase.BETTING:
         this.setPhase(RoulettePhase.SPINNING, 3_000)
         break
       case RoulettePhase.SPINNING:
-        this.resolveGame()
-        this.setPhase(RoulettePhase.RESULT, 10_000)
+        await this.resolveGame()
+        this.setPhase(RoulettePhase.RESULT, 15_000)
         break
       case RoulettePhase.RESULT:
         this.reset()
@@ -48,7 +51,7 @@ export class RouletteGame {
   }
 
   placeBet(bets: Bet[], ws: WebSocket) {
-    if (this.phase !== RoulettePhase.BETTING) {
+    if (this.phase !== RoulettePhase.BETTING && this.phase !== RoulettePhase.SPINNING) {
       throw new Error("Betting closed")
     }
 
@@ -56,13 +59,23 @@ export class RouletteGame {
   }
 
   private async resolveGame() {
+    console.log(">>> resolveGame: bets count =", this.bets.size)
     const roulettteRandomResult = Math.floor(Math.random() * 37)
+    this.lastWinningNumber = roulettteRandomResult
 
+    // Broadcast winning number to ALL clients (so everyone sees the wheel spin)
+    this.broadcast({
+      type: "ROUND_RESULT",
+      payload: { winningNumber: roulettteRandomResult },
+    })
+
+    // Send individual gains to each player who bet
     await Promise.all(
-      Array.from(this.bets.entries()).map(async ([ws, bets]) => {
-        const gains = await calculateGains(roulettteRandomResult, bets)
-        playeEffect(gains, bet)
-        this.message(ws, {
+      Array.from(this.bets.entries()).map(async ([ws, playerBets]) => {
+        const gains = await calculateGains(roulettteRandomResult, playerBets)
+        const totalBet = playerBets.reduce((sum, singleBet) => sum + singleBet.amount, 0)
+        playeEffect(gains, totalBet)
+        await this.message(ws, {
           type: "BET_RESULT",
           payload: { gains, roulettteRandomResult },
         })
@@ -70,7 +83,23 @@ export class RouletteGame {
     )
   }
 
+  getCurrentPhase() {
+    const remainingMs = Math.max(0, this.phaseEndsAt - Date.now())
+    return {
+      type: "PHASE_UPDATE" as const,
+      payload: {
+        phase: this.phase,
+        endsAt: this.phaseEndsAt,
+        durationMs: remainingMs,
+        ...(this.lastWinningNumber !== null && this.phase !== RoulettePhase.BETTING
+          ? { winningNumber: this.lastWinningNumber }
+          : {}),
+      },
+    }
+  }
+
   private reset() {
     this.bets = new Map()
+    this.lastWinningNumber = null
   }
 }

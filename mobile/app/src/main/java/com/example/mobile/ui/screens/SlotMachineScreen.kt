@@ -226,7 +226,6 @@ fun SlotMachineScreen(
         if (serverResult != null) {
             val win = serverResult.gain
             balance = serverResult.balance
-            lastWin = win
             lastResultDelta = win
 
             if (win > 0) {

@@ -55,6 +55,9 @@ const message = async (ws: WebSocket, msg: any) => {
     }
   }
 
+  if (msg.type === "BET_RESULT") {
+    console.log(">>> BET_RESULT payload:", JSON.stringify(msg.payload))
+  }
   ws.send(JSON.stringify(msg))
 }
 
@@ -82,6 +85,9 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       partyId: null,
       totalBet: 0,
     })
+
+    // Send current phase so mid-round joiners know where we are
+    send(ws, game.getCurrentPhase())
   })
 
   ws.on("message", async (raw) => {
@@ -96,7 +102,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         if (!ctx) throw new Error("No session")
 
         const bets: Bet[] = msg.payload
-        const totalBet = bets.reduce((sum, b) => sum + b.amount, 0)
+        const totalBet = bets.reduce((sum, bet) => sum + bet.amount, 0)
 
         if (totalBet <= 0) {
           return send(ws, {
@@ -105,21 +111,15 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           })
         }
 
-        const user = await getUserById(ctx.userId)
-        if (!user || Number(user.balance) < totalBet) {
-          return send(ws, {
-            type: "ERROR",
-            payload: { message: "Solde insuffisant" },
-          })
-        }
+        // Store bets in memory FIRST (sync) so resolveGame() can find them
+        // even if the async DB operations below yield to the event loop
+        game.placeBet(bets, ws)
 
         const { id: partyId } = await createParty("roulette")
         await placeRouletteBets(partyId, ctx.userId, bets)
 
         ctx.partyId = partyId
         ctx.totalBet = totalBet
-
-        game.placeBet(bets, ws)
       } catch (e: any) {
         console.error("Roulette WS error", e)
         send(ws, {
