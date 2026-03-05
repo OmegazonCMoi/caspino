@@ -31,14 +31,14 @@ export class RouletteGame {
     setTimeout(() => this.nextPhase(), durationMs)
   }
 
-  private nextPhase() {
+  private async nextPhase() {
     switch (this.phase) {
       case RoulettePhase.BETTING:
         this.setPhase(RoulettePhase.SPINNING, 3_000)
         break
       case RoulettePhase.SPINNING:
-        this.resolveGame()
-        this.setPhase(RoulettePhase.RESULT, 10_000)
+        await this.resolveGame()
+        this.setPhase(RoulettePhase.RESULT, 15_000)
         break
       case RoulettePhase.RESULT:
         this.reset()
@@ -58,6 +58,13 @@ export class RouletteGame {
   private async resolveGame() {
     const roulettteRandomResult = Math.floor(Math.random() * 37)
 
+    // Broadcast winning number to ALL clients (so everyone sees the wheel spin)
+    this.broadcast({
+      type: "ROUND_RESULT",
+      payload: { winningNumber: roulettteRandomResult },
+    })
+
+    // Send individual gains to each player who bet
     await Promise.all(
       Array.from(this.bets.entries()).map(async ([ws, playerBets]) => {
         const gains = await calculateGains(roulettteRandomResult, playerBets)

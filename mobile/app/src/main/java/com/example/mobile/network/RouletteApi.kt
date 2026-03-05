@@ -29,6 +29,7 @@ object RouletteApi {
     private var pendingOpen: CompletableDeferred<Boolean>? = null
 
     var onPhaseUpdate: ((RoulettePhaseUpdate) -> Unit)? = null
+    var onRoundResult: ((Int) -> Unit)? = null
     var onBetResult: ((RouletteBetResult) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
 
@@ -50,6 +51,10 @@ object RouletteApi {
                                 endsAt = payload.getLong("endsAt")
                             )
                         )
+                    }
+                    "ROUND_RESULT" -> {
+                        val payload = json.getJSONObject("payload")
+                        onRoundResult?.invoke(payload.getInt("winningNumber"))
                     }
                     "BET_RESULT" -> {
                         val payload = json.getJSONObject("payload")

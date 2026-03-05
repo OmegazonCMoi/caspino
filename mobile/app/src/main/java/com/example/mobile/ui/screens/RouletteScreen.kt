@@ -357,18 +357,21 @@ fun RouletteScreen(
             }
         }
 
+        // Winning number broadcast to ALL clients → triggers wheel spin
+        RouletteApi.onRoundResult = { number ->
+            winningNumber = number
+            spinCommandId++
+            currentSpinCommand = SpinCommand(id = spinCommandId, number = number)
+        }
+
+        // Individual gains for players who bet
         RouletteApi.onBetResult = { result ->
-            winningNumber = result.winningNumber
             lastPayout = result.gains
 
             // Sync balance from server
             if (result.balance > 0) {
                 BalanceState.setBalance(result.balance)
             }
-
-            // Trigger wheel animation
-            spinCommandId++
-            currentSpinCommand = SpinCommand(id = spinCommandId, number = result.winningNumber)
 
             // Confetti on win
             if (result.gains > 0) {
@@ -399,6 +402,7 @@ fun RouletteScreen(
 
         onDispose {
             RouletteApi.onPhaseUpdate = null
+            RouletteApi.onRoundResult = null
             RouletteApi.onBetResult = null
             RouletteApi.onError = null
             RouletteApi.disconnect()
