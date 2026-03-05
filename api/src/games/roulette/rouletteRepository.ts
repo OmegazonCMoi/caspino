@@ -55,11 +55,27 @@ const getBetKind = (bet: Bet): BetKind => {
   return "roulette_number"
 }
 
-const getBetSelection = (bet: Bet): unknown => {
-  if (isNumberBet(bet)) return bet.numbers
-  if (isTwoTimesBet(bet)) return bet.choice
-  if (isThreeTimesBet(bet)) return bet.dozen
-  return null
+const getBetSelection = (bet: Bet): Record<string, unknown> => {
+  if (isNumberBet(bet)) return { number: bet.numbers[0] }
+  if (isTwoTimesBet(bet)) {
+    switch (bet.choice) {
+      case "red":
+      case "black":
+        return { color: bet.choice }
+      case "even":
+      case "odd":
+        return { parity: bet.choice }
+      case "1-18":
+        return { range: "low" }
+      case "19-36":
+        return { range: "high" }
+    }
+  }
+  if (isThreeTimesBet(bet)) {
+    const dozenMap: Record<string, number> = { "1-12": 1, "13-24": 2, "25-36": 3 }
+    return { dozen: dozenMap[bet.dozen] }
+  }
+  return {}
 }
 
 export const placeRouletteBets = (
@@ -82,18 +98,36 @@ export const placeRouletteBets = (
     }
 
     for (const bet of bets) {
-      await trx
-        .insertInto("bets")
-        .values({
-          id: crypto.randomUUID(),
-          party_id: partyId,
-          user_id: userId,
-          amount: bet.amount,
-          kind: getBetKind(bet),
-          selection: JSON.stringify(getBetSelection(bet)),
-          created_at: new Date(),
-        })
-        .execute()
+      if (isNumberBet(bet) && bet.numbers.length > 1) {
+        const amountPerNumber = bet.amount / bet.numbers.length
+        for (const number of bet.numbers) {
+          await trx
+            .insertInto("bets")
+            .values({
+              id: crypto.randomUUID(),
+              party_id: partyId,
+              user_id: userId,
+              amount: amountPerNumber,
+              kind: "roulette_number",
+              selection: JSON.stringify({ number }),
+              created_at: new Date(),
+            })
+            .execute()
+        }
+      } else {
+        await trx
+          .insertInto("bets")
+          .values({
+            id: crypto.randomUUID(),
+            party_id: partyId,
+            user_id: userId,
+            amount: bet.amount,
+            kind: getBetKind(bet),
+            selection: JSON.stringify(getBetSelection(bet)),
+            created_at: new Date(),
+          })
+          .execute()
+      }
     }
   })
 }
