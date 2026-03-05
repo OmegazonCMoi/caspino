@@ -181,6 +181,8 @@ private fun multiBetMultiplier(count: Int): Int = when (count) {
     else -> 0
 }
 
+private enum class RoulettePhase { BETTING, SPINNING, RESULT }
+
 @Composable
 fun RouletteScreen(
     onBackClick: () -> Unit
@@ -191,9 +193,10 @@ fun RouletteScreen(
     var balance by BalanceState.balance
     var winningNumber by remember { mutableStateOf<Int?>(null) }
     var forcedNumberText by remember { mutableStateOf("") }
-    var isBettingPhase by remember { mutableStateOf(true) }
+    var gamePhase by remember { mutableStateOf(RoulettePhase.BETTING) }
     var confettiParties by remember { mutableStateOf<List<Party>>(emptyList()) }
     var punchline by remember { mutableStateOf<String?>(null) }
+    var lastPayout by remember { mutableIntStateOf(0) }
 
     // Chip-based betting state
     var numberBets by remember { mutableStateOf(mapOf<Int, Int>()) }
@@ -310,8 +313,8 @@ fun RouletteScreen(
         currentSpinCommand = SpinCommand(id = spinCommandId, number = targetNumber)
     }
 
-    LaunchedEffect(isBettingPhase) {
-        if (!isBettingPhase) {
+    LaunchedEffect(gamePhase) {
+        if (gamePhase == RoulettePhase.SPINNING) {
             val forced = forcedNumberText.toIntOrNull()?.takeIf { it in 0..36 }
             requestSpin(forced)
         }
@@ -332,7 +335,7 @@ fun RouletteScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(scrollState)
+                        .then(if (gamePhase == RoulettePhase.BETTING) Modifier.verticalScroll(scrollState) else Modifier)
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -363,7 +366,8 @@ fun RouletteScreen(
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    if (isBettingPhase) {
+                    when (gamePhase) {
+                    RoulettePhase.BETTING -> {
                         // ============ BETTING PHASE ============
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -651,7 +655,7 @@ fun RouletteScreen(
                                 }
                                 AppButton(
                                     text = "Valider les mises",
-                                    onClick = { if (totalBet > 0) isBettingPhase = false },
+                                    onClick = { if (totalBet > 0) gamePhase = RoulettePhase.SPINNING },
                                     variant = ButtonVariant.Primary,
                                     size = ButtonSize.Medium,
                                     enabled = totalBet > 0,
@@ -660,15 +664,17 @@ fun RouletteScreen(
                                 )
                             }
                         }
-                    } else {
-                        // ============ WHEEL + RESULT PHASE ============
+                    }
+
+                    RoulettePhase.SPINNING -> {
+                        // ============ SPINNING PHASE ============
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp)),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                            Spacer(modifier = Modifier.height(16.dp))
+
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -688,6 +694,7 @@ fun RouletteScreen(
                                             multiBets = multiBets,
                                             winningNumber = number
                                         )
+                                        lastPayout = payout
                                         if (payout > 0) {
                                             BalanceState.addPinos(payout)
                                         }
@@ -715,8 +722,66 @@ fun RouletteScreen(
                                                 )
                                             )
                                         }
+
+                                        gamePhase = RoulettePhase.RESULT
                                     }
                                 )
+                            }
+
+                            Text(
+                                text = "La roue tourne...",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFB0B0B0)
+                            )
+                        }
+                    }
+
+                    RoulettePhase.RESULT -> {
+                        // ============ RESULT PHASE ============
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Winning number
+                            if (winningNumber != null) {
+                                val winColor = when {
+                                    winningNumber == 0 -> Color(0xFF1B5E20)
+                                    isRouletteRed(winningNumber!!) -> Color(0xFFB71C1C)
+                                    else -> Color(0xFF212121)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .background(winColor, CircleShape)
+                                        .border(3.dp, Color.White, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = winningNumber.toString(),
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+
+                                // Payout result
+                                if (lastPayout > 0) {
+                                    Text(
+                                        text = "+$lastPayout",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF4CAF50)
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Perdu",
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFEF5350)
+                                    )
+                                }
                             }
 
                             // Bet summary
@@ -828,11 +893,12 @@ fun RouletteScreen(
                             AppButton(
                                 text = "Nouvelle mise",
                                 onClick = {
-                                    isBettingPhase = true
+                                    gamePhase = RoulettePhase.BETTING
                                     numberBets = emptyMap()
                                     groupBets = emptyMap()
                                     multiBets = emptyMap()
                                     winningNumber = null
+                                    lastPayout = 0
                                 },
                                 variant = ButtonVariant.Primary,
                                 size = ButtonSize.Medium,
@@ -841,6 +907,7 @@ fun RouletteScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
+                    }
                     }
                 }
             }
@@ -863,14 +930,14 @@ private fun BetBadge(
 ) {
     Box(
         modifier = modifier
-            .padding(2.dp)
+            .size(22.dp)
             .background(Color(0xFFFF9800), CircleShape)
-            .padding(horizontal = 4.dp, vertical = 1.dp),
+            .border(1.dp, Color.White, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = amount.toString(),
-            fontSize = 9.sp,
+            fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White
         )

@@ -135,7 +135,8 @@ fun RouletteWheel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.Center),
-                horizontalArrangement = Arrangement.spacedBy(blockSpacing)
+                horizontalArrangement = Arrangement.spacedBy(blockSpacing),
+                userScrollEnabled = false
             ) {
                 items(totalItems) { index ->
                     val number = numbers[index % numbers.size]
