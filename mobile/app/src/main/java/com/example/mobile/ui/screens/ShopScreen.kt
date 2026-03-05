@@ -57,7 +57,6 @@ fun ShopScreen(
     onBackClick: () -> Unit
 ) {
     var balance by BalanceState.balance
-    var hasClaimedFreeToday by BalanceState.hasClaimedFreeTodayState
     val coroutineScope = rememberCoroutineScope()
     var isClaiming by remember { mutableStateOf(false) }
 
