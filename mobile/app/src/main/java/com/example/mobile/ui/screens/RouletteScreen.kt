@@ -495,7 +495,7 @@ fun RouletteScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(if (isBetting) Modifier.verticalScroll(scrollState) else Modifier)
+                        .then(if (isBetting || wheelFinished) Modifier.verticalScroll(scrollState) else Modifier)
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
