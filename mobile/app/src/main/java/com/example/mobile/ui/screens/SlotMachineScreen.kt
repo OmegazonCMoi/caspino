@@ -226,7 +226,7 @@ fun SlotMachineScreen(
             val win = serverResult.gain
             balance = serverResult.balance
             lastWin = win
-            lastResultDelta = if (win > 0) win else -bet
+            lastResultDelta = win
 
             if (win > 0) {
                 val isJackpot = (target1 == target2 && target2 == target3)
@@ -351,15 +351,19 @@ fun SlotMachineScreen(
                 )
             }
 
-            // Résultat du dernier spin (+gain ou -mise)
+            // Résultat du dernier spin
             if (lastResultDelta != null && !isSpinning) {
-                val delta = lastResultDelta!!
-                val isWin = delta > 0
+                val gain = lastResultDelta!!
+                val gainColor = when {
+                    gain <= 0 -> Color(0xFFEF4444)
+                    gain < bet -> Color(0xFFF59E0B)
+                    else -> Color(0xFF22C55E)
+                }
                 Text(
-                    text = if (isWin) "+$delta" else "$delta",
+                    text = "+$gain",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isWin) Color(0xFF22C55E) else Color(0xFFEF4444),
+                    color = gainColor,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
