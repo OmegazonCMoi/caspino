@@ -55,6 +55,9 @@ const message = async (ws: WebSocket, msg: any) => {
     }
   }
 
+  if (msg.type === "BET_RESULT") {
+    console.log(">>> BET_RESULT payload:", JSON.stringify(msg.payload))
+  }
   ws.send(JSON.stringify(msg))
 }
 

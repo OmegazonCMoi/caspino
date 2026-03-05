@@ -56,6 +56,7 @@ export class RouletteGame {
   }
 
   private async resolveGame() {
+    console.log(">>> resolveGame: bets count =", this.bets.size)
     const roulettteRandomResult = Math.floor(Math.random() * 37)
 
     // Broadcast winning number to ALL clients (so everyone sees the wheel spin)
