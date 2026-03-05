@@ -171,9 +171,9 @@ private fun RouletteBlock(
             .size(size)
             .background(
                 color = when {
-                    number == 0 -> Color(0xFF1B5E20)        // vert pour le 0
-                    number % 2 == 0 -> Color(0xFFB71C1C)   // rouge pour les pairs
-                    else -> Color(0xFF212121)             // noir pour les impairs
+                    number == 0 -> Color(0xFF1B5E20)
+                    number in setOf(1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36) -> Color(0xFFB71C1C)
+                    else -> Color(0xFF212121)
                 },
                 shape = RoundedCornerShape(12.dp)
             ),
