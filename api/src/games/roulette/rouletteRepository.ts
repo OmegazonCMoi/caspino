@@ -1,5 +1,5 @@
+import crypto from "crypto"
 import { db } from "../../db/index.ts"
-import { placeBet } from "../../globalRepository.ts"
 import type { BetKind } from "../../db/database.ts"
 import type {
   Bet,
@@ -67,15 +67,33 @@ export const placeRouletteBets = (
   userId: string,
   bets: Bet[],
 ) => {
-  return Promise.all(
-    bets.map((bet) =>
-      placeBet(
-        partyId,
-        userId,
-        bet.amount,
-        getBetKind(bet),
-        getBetSelection(bet),
-      ),
-    ),
-  )
+  return db.transaction().execute(async (trx) => {
+    const totalBet = bets.reduce((sum, bet) => sum + bet.amount, 0)
+
+    const user = await trx
+      .selectFrom("users")
+      .select("balance")
+      .where("id", "=", userId)
+      .forUpdate()
+      .executeTakeFirstOrThrow()
+
+    if (Number(user.balance) < totalBet) {
+      throw new Error("Solde insuffisant")
+    }
+
+    for (const bet of bets) {
+      await trx
+        .insertInto("bets")
+        .values({
+          id: crypto.randomUUID(),
+          party_id: partyId,
+          user_id: userId,
+          amount: bet.amount,
+          kind: getBetKind(bet),
+          selection: JSON.stringify(getBetSelection(bet)),
+          created_at: new Date(),
+        })
+        .execute()
+    }
+  })
 }

@@ -119,3 +119,37 @@ export const placeBet = (
     })
     .execute()
 }
+
+export const checkBalanceAndPlaceBet = async (
+  userId: string,
+  partyId: string,
+  amount: number,
+  betType: BetKind,
+  selection: unknown,
+) => {
+  return db.transaction().execute(async (trx) => {
+    const user = await trx
+      .selectFrom("users")
+      .select("balance")
+      .where("id", "=", userId)
+      .forUpdate()
+      .executeTakeFirstOrThrow()
+
+    if (Number(user.balance) < amount) {
+      throw new Error("Solde insuffisant")
+    }
+
+    await trx
+      .insertInto("bets")
+      .values({
+        id: crypto.randomUUID(),
+        party_id: partyId,
+        user_id: userId,
+        amount,
+        kind: betType,
+        selection: JSON.stringify(selection),
+        created_at: new Date(),
+      })
+      .execute()
+  })
+}

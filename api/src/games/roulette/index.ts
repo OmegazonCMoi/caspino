@@ -99,20 +99,12 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         if (!ctx) throw new Error("No session")
 
         const bets: Bet[] = msg.payload
-        const totalBet = bets.reduce((sum, b) => sum + b.amount, 0)
+        const totalBet = bets.reduce((sum, bet) => sum + bet.amount, 0)
 
         if (totalBet <= 0) {
           return send(ws, {
             type: "ERROR",
             payload: { message: "Mise invalide" },
-          })
-        }
-
-        const user = await getUserById(ctx.userId)
-        if (!user || Number(user.balance) < totalBet) {
-          return send(ws, {
-            type: "ERROR",
-            payload: { message: "Solde insuffisant" },
           })
         }
 

@@ -7,7 +7,7 @@ import {
   getUserById,
   createParty,
   finishParty,
-  placeBet,
+  checkBalanceAndPlaceBet,
 } from "../../globalRepository.ts"
 import { saveSlotResult } from "./slotsRepository.ts"
 
@@ -51,16 +51,8 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           })
         }
 
-        const user = await getUserById(userId)
-        if (!user || Number(user.balance) < bet) {
-          return send(ws, {
-            type: "ERROR",
-            payload: { message: "Solde insuffisant" },
-          })
-        }
-
         const { id: partyId } = await createParty("slot")
-        await placeBet(partyId, userId, bet, "slot_spin", {})
+        await checkBalanceAndPlaceBet(userId, partyId, bet, "slot_spin", {})
 
         const slotResult = game.generateResult()
         const gains = calculateGains(bet, slotResult, [

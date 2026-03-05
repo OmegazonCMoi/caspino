@@ -7,7 +7,7 @@ import {
   getUserById,
   createParty,
   finishParty,
-  placeBet,
+  checkBalanceAndPlaceBet,
 } from "../../globalRepository.ts"
 import { saveBlackjackResult } from "./blackjackRepository.ts"
 
@@ -82,16 +82,8 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           })
         }
 
-        const user = await getUserById(userId)
-        if (!user || Number(user.balance) < bet) {
-          return send(ws, {
-            type: "ERROR",
-            payload: { message: "Solde insuffisant" },
-          })
-        }
-
         const { id: partyId } = await createParty("blackjack")
-        await placeBet(partyId, userId, bet, "blackjack_win", {})
+        await checkBalanceAndPlaceBet(userId, partyId, bet, "blackjack_win", {})
 
         playerContexts.set(ws, { userId, partyId, initialBet: bet })
 
@@ -100,30 +92,14 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         const ctx = playerContexts.get(ws)
         if (!ctx) throw new Error("No active session")
 
-        const user = await getUserById(userId)
-        if (!user || Number(user.balance) < ctx.initialBet) {
-          return send(ws, {
-            type: "ERROR",
-            payload: { message: "Solde insuffisant" },
-          })
-        }
-
-        await placeBet(ctx.partyId, userId, ctx.initialBet, "blackjack_win", { action: "double_down" })
+        await checkBalanceAndPlaceBet(userId, ctx.partyId, ctx.initialBet, "blackjack_win", { action: "double_down" })
 
         game.handleAction(BlackjackAction.DOUBLE_DOWN, ws)
       } else if (msg.type === "SPLIT") {
         const ctx = playerContexts.get(ws)
         if (!ctx) throw new Error("No active session")
 
-        const user = await getUserById(userId)
-        if (!user || Number(user.balance) < ctx.initialBet) {
-          return send(ws, {
-            type: "ERROR",
-            payload: { message: "Solde insuffisant" },
-          })
-        }
-
-        await placeBet(ctx.partyId, userId, ctx.initialBet, "blackjack_win", { action: "split" })
+        await checkBalanceAndPlaceBet(userId, ctx.partyId, ctx.initialBet, "blackjack_win", { action: "split" })
 
         game.handleAction(BlackjackAction.SPLIT, ws)
       } else if (msg.type === "INSURANCE") {
@@ -131,15 +107,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         if (!ctx) throw new Error("No active session")
 
         const insuranceAmount = Math.floor(ctx.initialBet / 2)
-        const user = await getUserById(userId)
-        if (!user || Number(user.balance) < insuranceAmount) {
-          return send(ws, {
-            type: "ERROR",
-            payload: { message: "Solde insuffisant" },
-          })
-        }
-
-        await placeBet(ctx.partyId, userId, insuranceAmount, "blackjack_win", { action: "insurance" })
+        await checkBalanceAndPlaceBet(userId, ctx.partyId, insuranceAmount, "blackjack_win", { action: "insurance" })
 
         game.handleAction(BlackjackAction.INSURANCE, ws)
       } else if (msg.type in BlackjackAction) {

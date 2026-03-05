@@ -1,6 +1,8 @@
 package com.example.mobile.ui.screens
 
+import android.media.MediaPlayer
 import android.content.Intent
+import com.example.mobile.network.ApiClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,6 +61,7 @@ import com.example.mobile.ui.components.CroupierPunchlineBanner
 import com.example.mobile.ui.components.RouletteWheel
 import com.example.mobile.ui.components.SpinCommand
 import com.example.mobile.ui.components.ConfettiOverlay
+import com.example.mobile.R
 import com.example.mobile.ui.theme.AccentBlue
 import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.network.PunchlineApi
@@ -177,6 +180,7 @@ fun RouletteScreen(
     var punchline by remember { mutableStateOf<String?>(null) }
     var lastPayout by remember { mutableIntStateOf(0) }
     var betsSentThisRound by remember { mutableStateOf(false) }
+    var totalBetSentThisRound by remember { mutableIntStateOf(0) }
 
     // Server sync state
     var serverPhase by remember { mutableStateOf("BETTING") }
@@ -204,6 +208,10 @@ fun RouletteScreen(
     }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+
+    val confettiMediaPlayer = remember {
+        MediaPlayer.create(context, R.raw.confetti_sound)
+    }
 
     val bottomBarItems = listOf(
         BottomBarItem(icon = AppIcons.Home, selectedIcon = AppIcons.HomeFilled) {
@@ -332,6 +340,7 @@ fun RouletteScreen(
 
         RouletteApi.placeBets(betsArray)
         betsSentThisRound = true
+        totalBetSentThisRound = totalBet
     }
 
     // --- WebSocket connection & event handling ---
@@ -369,12 +378,11 @@ fun RouletteScreen(
             lastPayout = result.gains
 
             // Sync balance from server
-            if (result.balance > 0) {
-                BalanceState.setBalance(result.balance)
-            }
+            BalanceState.setBalance(result.balance)
+            ApiClient.saveBalance(result.balance)
 
-            // Confetti on win
-            if (result.gains > 0) {
+            // Confetti + sound only when gains >= 2x total bet
+            if (result.gains >= 2 * totalBetSentThisRound && totalBetSentThisRound > 0) {
                 val durationSec = 3.0
                 confettiParties = listOf(
                     Party(
@@ -390,10 +398,18 @@ fun RouletteScreen(
                         fadeOutEnabled = true
                     )
                 )
+                try { confettiMediaPlayer.seekTo(0); confettiMediaPlayer.start() } catch (_: Exception) { }
             }
         }
 
         RouletteApi.onError = { _ ->
+            if (totalBet > 0) {
+                BalanceState.addPinos(totalBet)
+                numberBets = emptyMap()
+                groupBets = emptyMap()
+                multiBets = emptyMap()
+                betsSentThisRound = false
+            }
         }
 
         scope.launch {
@@ -406,6 +422,7 @@ fun RouletteScreen(
             RouletteApi.onBetResult = null
             RouletteApi.onError = null
             RouletteApi.disconnect()
+            try { confettiMediaPlayer.release() } catch (_: Exception) { }
         }
     }
 
@@ -759,10 +776,15 @@ fun RouletteScreen(
 
                                         if (!betsSentThisRound) {
                                             Text("Aucune mise", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF888888))
-                                        } else if (lastPayout > 0) {
-                                            Text("+$lastPayout", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                                         } else {
-                                            Text("Perdu", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFEF5350))
+                                            val netResult = lastPayout - totalBetSentThisRound
+                                            Text("Mise : $totalBetSentThisRound", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFFB0B0B0))
+                                            Text("Gains : $lastPayout", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFFB0B0B0))
+                                            when {
+                                                netResult > 0 -> Text("+$netResult", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                                                netResult == 0 -> Text("0", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF888888))
+                                                else -> Text("$netResult", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFEF5350))
+                                            }
                                         }
                                     } else {
                                         Text(
