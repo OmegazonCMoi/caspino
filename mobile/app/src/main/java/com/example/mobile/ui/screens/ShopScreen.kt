@@ -151,31 +151,34 @@ fun ShopScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Offre gratuite : une seule récup par jour (appel API)
+                    // Offre gratuite : masquée si déjà récupérée aujourd'hui
                     val hasClaimedFree = BalanceState.hasClaimedFreeToday()
-                    PinosOfferCardFull(
-                        offer = freeOffer,
-                        enabled = !hasClaimedFree && !isClaiming,
-                        secondsUntilReset = if (hasClaimedFree) secondsUntilMidnight else 0L,
-                        onBuyClick = {
-                            if (!BalanceState.hasClaimedFreeToday() && !isClaiming) {
-                                coroutineScope.launch {
-                                    isClaiming = true
-                                    val result = AuthApi.claimDailyBonus()
-                                    result.onSuccess { newBalance ->
-                                        BalanceState.balance.intValue = newBalance
-                                        BalanceState.markFreeClaimedToday()
-                                        ApiClient.saveBalance(newBalance)
-                                    }.onFailure { error ->
-                                        if (error is AlreadyClaimedException) {
+                    if (hasClaimedFree) {
+                        DailyBonusTimer(secondsUntilMidnight = secondsUntilMidnight)
+                    } else {
+                        PinosOfferCardFull(
+                            offer = freeOffer,
+                            enabled = !isClaiming,
+                            onBuyClick = {
+                                if (!BalanceState.hasClaimedFreeToday() && !isClaiming) {
+                                    coroutineScope.launch {
+                                        isClaiming = true
+                                        val result = AuthApi.claimDailyBonus()
+                                        result.onSuccess { newBalance ->
+                                            BalanceState.balance.intValue = newBalance
                                             BalanceState.markFreeClaimedToday()
+                                            ApiClient.saveBalance(newBalance)
+                                        }.onFailure { error ->
+                                            if (error is AlreadyClaimedException) {
+                                                BalanceState.markFreeClaimedToday()
+                                            }
                                         }
+                                        isClaiming = false
                                     }
-                                    isClaiming = false
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
@@ -209,10 +212,31 @@ fun ShopScreen(
 }
 
 @Composable
+private fun DailyBonusTimer(secondsUntilMidnight: Long) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkSurfaceVariant)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        val hours = secondsUntilMidnight / 3600
+        val minutes = (secondsUntilMidnight % 3600) / 60
+        val seconds = secondsUntilMidnight % 60
+        Text(
+            text = "Bonus quotidien dans ${hours}h ${minutes}m ${seconds}s",
+            fontSize = 14.sp,
+            color = DarkTextSecondary
+        )
+    }
+}
+
+@Composable
 private fun PinosOfferCardFull(
     offer: PinosOffer,
     enabled: Boolean,
-    secondsUntilReset: Long,
     onBuyClick: () -> Unit
 ) {
     Row(
@@ -249,20 +273,9 @@ private fun PinosOfferCardFull(
                 fontSize = 15.sp,
                 color = DarkTextSecondary
             )
-            if (!enabled && secondsUntilReset > 0) {
-                val hours = secondsUntilReset / 3600
-                val minutes = (secondsUntilReset % 3600) / 60
-                val seconds = secondsUntilReset % 60
-                Text(
-                    text = "Dispo dans ${hours}h ${minutes}m ${seconds}s",
-                    fontSize = 12.sp,
-                    color = DarkTextSecondary
-                )
-            }
         }
-        val buttonText = if (enabled) offer.priceDisplay else "Déjà récupéré"
         AppButton(
-            text = buttonText,
+            text = offer.priceDisplay,
             onClick = onBuyClick,
             variant = ButtonVariant.Primary,
             size = ButtonSize.Medium,
