@@ -10,6 +10,7 @@ services:
       - "5500:5500"
     environment:
       JWT_SECRET: ${JWT_SECRET}
+      BASETEN_API_KEY: ${BASETEN_API_KEY}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER}

@@ -3,7 +3,7 @@ import bodyParser from "body-parser"
 import bcrypt from "bcrypt"
 import crypto from "crypto"
 import jwt from "jsonwebtoken"
-import OpenAI from "openai"
+import { OpenAI } from "openai"
 import "dotenv/config"
 import {
   getUserByUsername,
@@ -167,7 +167,9 @@ app.post(
       const existingClaim = await getLastDailyBonus(userId)
 
       if (existingClaim) {
-        console.log(`[claim-daily-bonus] Already claimed today for userId="${userId}"`)
+        console.log(
+          `[claim-daily-bonus] Already claimed today for userId="${userId}"`,
+        )
         return res.status(409).json({ message: "Already claimed today" })
       }
 
@@ -176,7 +178,9 @@ app.post(
       const user = await getUserById(userId)
       const balance = Number(user?.balance ?? 0)
 
-      console.log(`[claim-daily-bonus] Success for userId="${userId}", balance=${balance}`)
+      console.log(
+        `[claim-daily-bonus] Success for userId="${userId}", balance=${balance}`,
+      )
       res.status(200).json({ balance })
     } catch (error) {
       console.error("Claim daily bonus error:", error)
@@ -189,10 +193,12 @@ app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "api-caspino" })
 })
 
-const bastetenClient = new OpenAI({
-  apiKey: process.env.BASETEN_API_KEY,
-  baseURL: "https://inference.baseten.co/v1",
-})
+const bastetenClient = process.env.BASETEN_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.BASETEN_API_KEY,
+      baseURL: "https://inference.baseten.co/v1",
+    })
+  : null
 
 app.get("/ai/punchline", async (req: Request, res: Response) => {
   const game = req.query.game as string | undefined
@@ -207,6 +213,16 @@ app.get("/ai/punchline", async (req: Request, res: Response) => {
     game === "blackjack"
       ? "Tu es un croupier de blackjack charismatique et drôle dans un casino en ligne appelé Caspino. Tu balances des punchlines courtes, percutantes et stylées sur le blackjack. Garde un ton fun, un peu provocateur mais toujours classe. Réponds UNIQUEMENT avec la punchline, sans guillemets, sans explication, une seule phrase."
       : "Tu es un croupier de roulette charismatique et drôle dans un casino en ligne appelé Caspino. Tu balances des punchlines courtes, percutantes et stylées sur la roulette. Garde un ton fun, un peu provocateur mais toujours classe. Réponds UNIQUEMENT avec la punchline, sans guillemets, sans explication, une seule phrase."
+
+  if (!bastetenClient) {
+    return res.status(200).json({
+      punchline:
+        game === "blackjack"
+          ? "21, le chiffre magique... ou pas."
+          : "Rien ne va plus, les jeux sont faits !",
+      game,
+    })
+  }
 
   try {
     const response = await bastetenClient.chat.completions.create({
