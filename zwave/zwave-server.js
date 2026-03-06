@@ -190,7 +190,7 @@ async function main() {
 
     const node = driver.controller.nodes.get(CASINO_DEVICES.SIREN);
     if (!node) return res.status(404).send("node not found");
-
+    console.log("small sound played")
     await playSound(node, 27);
 
     res.send("ok");
@@ -205,6 +205,7 @@ async function main() {
     if (!node) return res.status(404).send("node not found");
 
     await playSound(node, 29);
+    console.log("medium sound played")
 
     res.send("ok");
 
@@ -218,6 +219,7 @@ async function main() {
     if (!node) return res.status(404).send("node not found");
 
     await playSound(node, 26);
+    console.log("big sound played")
 
     res.send("ok");
 
@@ -232,6 +234,7 @@ async function main() {
 
     if (siren) playSound(siren, 19);
     if (plug) blinkPlug(plug);
+    console.log("jackpot sound played")
 
     res.send("jackpot");
 
