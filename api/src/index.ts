@@ -24,6 +24,7 @@ import {
   getPlayerWinnings,
   getPlayerSessionCount,
 } from "./statsRepository.ts"
+import { playeEffect } from "./games/playeEffect.ts"
 
 const SALT_ROUNDS = 12
 
@@ -197,6 +198,7 @@ app.post(
 
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "api-caspino" })
+  playeEffect(100,10);
 })
 
 const bastetenClient = process.env.BASETEN_API_KEY
