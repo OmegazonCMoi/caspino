@@ -238,7 +238,10 @@ private fun PlatformStatsContent(stats: StatsPlatformResponse, analysis: Players
         }
 
         SectionTitle("Tendance revenu brut (7 jours)")
-        GgrLineChart(stats.ggrTrend7d.map { it.ggr })
+        GgrLineChart(
+            data = stats.ggrTrend7d.map { it.ggr },
+            days = stats.ggrTrend7d.map { it.day }
+        )
 
         SectionTitle("Répartition du trafic")
         if (totalSessions > 0) {
@@ -422,67 +425,118 @@ private fun KpiCard(
 }
 
 @Composable
-private fun GgrLineChart(data: List<Int>) {
+private fun GgrLineChart(data: List<Int>, days: List<String>) {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         progress.animateTo(1f, animationSpec = tween(1100, easing = FastOutSlowInEasing))
     }
 
-    Box(
+    if (data.size < 2) return
+
+    val min = data.min()
+    val max = data.max()
+    val range = (max - min).coerceAtLeast(1)
+
+    val dayLabels = days.map { raw ->
+        val datePart = raw.substringBefore("T")
+        val parts = datePart.split("-")
+        if (parts.size >= 3) "${parts[2]}/${parts[1]}" else datePart
+    }
+
+    val yLabelCount = 4
+    val yLabels = (0 until yLabelCount).map { stepIndex ->
+        val value = min + (range * stepIndex / (yLabelCount - 1).toFloat()).toInt()
+        if (kotlin.math.abs(value) >= 1000) "${value / 1000}k" else "$value"
+    }.reversed()
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(170.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(DarkSurface)
             .padding(14.dp)
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            if (data.size < 2) return@Canvas
-            val min = data.min().toFloat()
-            val max = data.max().toFloat()
-            val range = (max - min).coerceAtLeast(1f)
-            val visible = (data.size * progress.value).toInt().coerceAtLeast(2)
-            val stepX = size.width / (data.size - 1).toFloat()
-
-            repeat(4) { i ->
-                val y = size.height * (i / 3f)
-                drawLine(
-                    color = DarkBorder,
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 0.6f
-                )
-            }
-
-            val path = Path()
-            val fill = Path()
-            for (i in 0 until visible) {
-                val x = i * stepX
-                val y = size.height - ((data[i] - min) / range) * size.height
-                if (i == 0) {
-                    path.moveTo(x, y)
-                    fill.moveTo(x, size.height)
-                    fill.lineTo(x, y)
-                } else {
-                    path.lineTo(x, y)
-                    fill.lineTo(x, y)
+        Row(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+            Column(
+                modifier = Modifier
+                    .width(32.dp)
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                yLabels.forEach { label ->
+                    Text(
+                        text = label,
+                        fontSize = 9.sp,
+                        color = DarkTextTertiary,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
-            val lastX = (visible - 1) * stepX
-            fill.lineTo(lastX, size.height)
-            fill.close()
 
-            drawPath(
-                path = fill,
-                brush = Brush.verticalGradient(
-                    listOf(AccentGreen.copy(alpha = 0.25f), Color.Transparent)
+            Spacer(Modifier.width(6.dp))
+
+            Canvas(modifier = Modifier.weight(1f).fillMaxSize()) {
+                val visible = (data.size * progress.value).toInt().coerceAtLeast(2)
+                val stepX = size.width / (data.size - 1).toFloat()
+
+                repeat(yLabelCount) { gridIndex ->
+                    val gridY = size.height * (gridIndex / (yLabelCount - 1).toFloat())
+                    drawLine(
+                        color = DarkBorder,
+                        start = Offset(0f, gridY),
+                        end = Offset(size.width, gridY),
+                        strokeWidth = 0.6f
+                    )
+                }
+
+                val path = Path()
+                val fill = Path()
+                for (pointIndex in 0 until visible) {
+                    val xPos = pointIndex * stepX
+                    val yPos = size.height - ((data[pointIndex] - min).toFloat() / range) * size.height
+                    if (pointIndex == 0) {
+                        path.moveTo(xPos, yPos)
+                        fill.moveTo(xPos, size.height)
+                        fill.lineTo(xPos, yPos)
+                    } else {
+                        path.lineTo(xPos, yPos)
+                        fill.lineTo(xPos, yPos)
+                    }
+                }
+                val lastX = (visible - 1) * stepX
+                fill.lineTo(lastX, size.height)
+                fill.close()
+
+                drawPath(
+                    path = fill,
+                    brush = Brush.verticalGradient(
+                        listOf(AccentGreen.copy(alpha = 0.25f), Color.Transparent)
+                    )
                 )
-            )
-            drawPath(
-                path = path,
-                color = AccentGreen,
-                style = Stroke(width = 2.5f, cap = StrokeCap.Round)
-            )
+                drawPath(
+                    path = path,
+                    color = AccentGreen,
+                    style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 38.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            dayLabels.forEach { label ->
+                Text(
+                    text = label,
+                    fontSize = 9.sp,
+                    color = DarkTextTertiary
+                )
+            }
         }
     }
 }

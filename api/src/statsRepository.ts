@@ -68,27 +68,50 @@ export const getPlayerSessionCount = (userId: string) => {
 
 export const getPerGameStats = (since: Date) => {
   return db
-    .selectFrom("parties as p")
-    .leftJoin("bets as b", (join) =>
-      join.onRef("b.party_id", "=", "p.id").on("b.created_at", ">=", since),
+    .with("bets_agg", (qb) =>
+      qb
+        .selectFrom("bets as b")
+        .innerJoin("parties as p", "p.id", "b.party_id")
+        .where("b.created_at", ">=", since)
+        .groupBy("p.game_type")
+        .select([
+          "p.game_type",
+          sql<string>`COUNT(DISTINCT ${sql.ref("b.party_id")})`.as("sessions_24h"),
+          sql<string>`COUNT(DISTINCT ${sql.ref("b.user_id")})`.as("unique_players_24h"),
+          sql<string>`COALESCE(SUM(${sql.ref("b.amount")}), 0)`.as("bet_volume_24h"),
+        ]),
     )
-    .leftJoin("slot_results as sr", "sr.party_id", "p.id")
-    .leftJoin("roulette_results as rr", "rr.party_id", "p.id")
-    .leftJoin("blackjack_results as br", "br.party_id", "p.id")
-    .where("p.created_at", ">=", since)
-    .groupBy("p.game_type")
+    .with("payouts_agg", (qb) =>
+      qb
+        .selectFrom(
+          sql<{ gain: number; game_type: string }>`(
+            SELECT sr.gain, p.game_type
+            FROM slot_results sr JOIN parties p ON p.id = sr.party_id
+            WHERE sr.created_at >= ${since}
+            UNION ALL
+            SELECT rr.gain, p.game_type
+            FROM roulette_results rr JOIN parties p ON p.id = rr.party_id
+            WHERE rr.created_at >= ${since}
+            UNION ALL
+            SELECT br.gain, p.game_type
+            FROM blackjack_results br JOIN parties p ON p.id = br.party_id
+            WHERE br.created_at >= ${since}
+          )`.as("all_payouts"),
+        )
+        .groupBy("all_payouts.game_type")
+        .select([
+          "all_payouts.game_type",
+          sql<string>`COALESCE(SUM(${sql.ref("all_payouts.gain")}), 0)`.as("total_payout_24h"),
+        ]),
+    )
+    .selectFrom("bets_agg as ba")
+    .leftJoin("payouts_agg as pa", "pa.game_type", "ba.game_type")
     .select([
-      "p.game_type",
-      db.fn.countAll().as("sessions_24h"),
-      sql<string>`COUNT(DISTINCT ${sql.ref("b.user_id")})`.as(
-        "unique_players_24h",
-      ),
-      sql<string>`COALESCE(SUM(${sql.ref("b.amount")}), 0)`.as(
-        "bet_volume_24h",
-      ),
-      sql<string>`COALESCE(SUM(COALESCE(${sql.ref("sr.gain")}, 0) + COALESCE(${sql.ref("rr.gain")}, 0) + COALESCE(${sql.ref("br.gain")}, 0)), 0)`.as(
-        "total_payout_24h",
-      ),
+      "ba.game_type",
+      "ba.sessions_24h",
+      "ba.unique_players_24h",
+      "ba.bet_volume_24h",
+      sql<string>`COALESCE(${sql.ref("pa.total_payout_24h")}, 0)`.as("total_payout_24h"),
     ])
     .execute()
 }
@@ -156,25 +179,49 @@ export const getGgrTrend = (since: Date) => {
 
 export const getPeakHours = (since: Date) => {
   return db
-    .selectFrom("parties as p")
-    .leftJoin("bets as b", (join) =>
-      join.onRef("b.party_id", "=", "p.id").on("b.created_at", ">=", since),
+    .with("bets_hourly", (qb) =>
+      qb
+        .selectFrom("bets as b")
+        .innerJoin("parties as p", "p.id", "b.party_id")
+        .where("b.created_at", ">=", since)
+        .groupBy(sql`date_trunc('hour', ${sql.ref("p.created_at")})`)
+        .select([
+          sql<Date>`date_trunc('hour', ${sql.ref("p.created_at")})`.as("hour_bucket"),
+          sql<string>`COUNT(DISTINCT ${sql.ref("b.party_id")})`.as("sessions"),
+          sql<string>`COALESCE(SUM(${sql.ref("b.amount")}), 0)`.as("bet_volume"),
+        ]),
     )
-    .leftJoin("slot_results as sr", "sr.party_id", "p.id")
-    .leftJoin("roulette_results as rr", "rr.party_id", "p.id")
-    .leftJoin("blackjack_results as br", "br.party_id", "p.id")
-    .where("p.created_at", ">=", since)
-    .groupBy(sql`date_trunc('hour', ${sql.ref("p.created_at")})`)
-    .orderBy(sql`sessions`, "desc")
+    .with("payouts_hourly", (qb) =>
+      qb
+        .selectFrom(
+          sql<{ gain: number; created_at: Date }>`(
+            SELECT sr.gain, p.created_at
+            FROM slot_results sr JOIN parties p ON p.id = sr.party_id
+            WHERE sr.created_at >= ${since}
+            UNION ALL
+            SELECT rr.gain, p.created_at
+            FROM roulette_results rr JOIN parties p ON p.id = rr.party_id
+            WHERE rr.created_at >= ${since}
+            UNION ALL
+            SELECT br.gain, p.created_at
+            FROM blackjack_results br JOIN parties p ON p.id = br.party_id
+            WHERE br.created_at >= ${since}
+          )`.as("all_payouts"),
+        )
+        .groupBy(sql`date_trunc('hour', ${sql.ref("all_payouts.created_at")})`)
+        .select([
+          sql<Date>`date_trunc('hour', ${sql.ref("all_payouts.created_at")})`.as("hour_bucket"),
+          sql<string>`COALESCE(SUM(${sql.ref("all_payouts.gain")}), 0)`.as("total_payout"),
+        ]),
+    )
+    .selectFrom("bets_hourly as bh")
+    .leftJoin("payouts_hourly as ph", "ph.hour_bucket", "bh.hour_bucket")
+    .orderBy(sql`${sql.ref("bh.sessions")}`, "desc")
     .limit(5)
     .select([
-      sql<Date>`date_trunc('hour', ${sql.ref("p.created_at")})`.as(
-        "hour_bucket",
-      ),
-      db.fn.countAll<string>().as("sessions"),
-      sql<string>`COALESCE(SUM(${sql.ref("b.amount")}), 0) - COALESCE(SUM(COALESCE(${sql.ref("sr.gain")}, 0) + COALESCE(${sql.ref("rr.gain")}, 0) + COALESCE(${sql.ref("br.gain")}, 0)), 0)`.as(
-        "ggr",
-      ),
+      "bh.hour_bucket",
+      "bh.sessions",
+      sql<string>`COALESCE(${sql.ref("bh.bet_volume")}, 0) - COALESCE(${sql.ref("ph.total_payout")}, 0)`.as("ggr"),
     ])
     .execute()
 }
