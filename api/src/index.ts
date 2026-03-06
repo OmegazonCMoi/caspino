@@ -117,7 +117,7 @@ app.post("/login", async (req: Request, res: Response) => {
       balance: Number(user.balance),
     })
   } catch (error) {
-    console.error("Login error:", error)
+    console.error("Login error : ", error)
     res.status(500).json({ message: "Internal server error" })
   }
 })
