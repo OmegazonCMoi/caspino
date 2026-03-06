@@ -363,25 +363,9 @@ private fun PlayerGamePerformance(games: List<PlayerGameStatDto>) {
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Win ${game.winRate}%",
-                        color = if (game.winRate >= 50) AccentGreen else AccentRed,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(7.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(DarkSurfaceVariant)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth((game.winRate / 100f).coerceIn(0f, 1f))
-                            .height(7.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(gameColor)
+                        text = "${game.totalBets} paris",
+                        color = DarkTextSecondary,
+                        fontSize = 12.sp
                     )
                 }
                 Row(
@@ -389,14 +373,16 @@ private fun PlayerGamePerformance(games: List<PlayerGameStatDto>) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "${game.totalBets} paris",
-                        fontSize = 11.sp,
-                        color = DarkTextSecondary
+                        text = "Misé : ${game.totalWagered}",
+                        fontSize = 12.sp,
+                        color = AccentPurple,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Misé ${game.totalWagered} / Gagné ${game.totalWon}",
-                        fontSize = 11.sp,
-                        color = DarkTextSecondary
+                        text = "Gagné : ${game.totalWon}",
+                        fontSize = 12.sp,
+                        color = AccentOrange,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -621,7 +607,7 @@ private fun GamePerformanceBars(stats: List<PlatformGameStat>) {
                         color = DarkTextSecondary
                     )
                     Text(
-                        text = "Payout ${game.payoutRate}%",
+                        text = "Redistribution ${game.payoutRate}%",
                         fontSize = 11.sp,
                         color = DarkTextSecondary
                     )
@@ -689,7 +675,7 @@ private fun SummaryPanel(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         SummaryRow("Jeux actifs", activeGames.toString(), AccentBlue)
-        SummaryRow("RTP global estimé", "$payoutRate%", AccentGreen)
+        SummaryRow("Redistribution globale", "$payoutRate%", AccentGreen)
         SummaryRow("Sessions / joueur", String.format("%.1f", avgSessionPerPlayer), AccentOrange)
         SummaryRow("Scope", "Blackjack / Roulette / Slot", DarkTextSecondary)
     }
