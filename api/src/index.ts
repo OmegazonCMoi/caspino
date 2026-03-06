@@ -266,7 +266,7 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
     let totalBetVolume = 0
     let totalPayout = 0
 
-    const games = perGame.rows.map((row) => {
+    const games = perGame.map((row) => {
       const sessions24h = Number(row.sessions_24h)
       const uniquePlayers24h = Number(row.unique_players_24h)
       const betVolume24h = Number(row.bet_volume_24h ?? 0)
@@ -299,12 +299,12 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
       }
     })
 
-    const ggrTrend7d = ggrTrend.rows.map((row) => ({
+    const ggrTrend7d = ggrTrend.map((row) => ({
       day: row.day,
       ggr: Number(row.ggr ?? 0),
     }))
 
-    const peakHoursResult = peakHours.rows.map((row) => {
+    const peakHoursResult = peakHours.map((row) => {
       const date = new Date(row.hour_bucket)
       const hour = date.getHours()
       const label = `${hour}h-${(hour + 1) % 24}h`
