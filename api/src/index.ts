@@ -17,6 +17,10 @@ import {
   getPerGameStats,
   getGgrTrend,
   getPeakHours,
+  getTotalPlayerWinnings24h,
+  getPlayerStats,
+  getPlayerWinnings,
+  getPlayerSessionCount,
 } from "./statsRepository.ts"
 
 const SALT_ROUNDS = 12
@@ -117,7 +121,7 @@ app.post("/login", async (req: Request, res: Response) => {
       balance: Number(user.balance),
     })
   } catch (error) {
-    console.error("Login error:", error)
+    console.error("Login error : ", error)
     res.status(500).json({ message: "Internal server error" })
   }
 })
@@ -257,16 +261,19 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
     const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     const since7d = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
 
-    const perGame = await getPerGameStats(since24h)
-    const ggrTrend = await getGgrTrend(since7d)
-    const peakHours = await getPeakHours(since24h)
+    const [perGame, ggrTrend, peakHours, winnings24h] = await Promise.all([
+      getPerGameStats(since24h),
+      getGgrTrend(since7d),
+      getPeakHours(since24h),
+      getTotalPlayerWinnings24h(since24h),
+    ])
 
     let totalSessions = 0
     let totalPlayers = 0
     let totalBetVolume = 0
     let totalPayout = 0
 
-    const games = perGame.rows.map((row) => {
+    const games = perGame.map((row) => {
       const sessions24h = Number(row.sessions_24h)
       const uniquePlayers24h = Number(row.unique_players_24h)
       const betVolume24h = Number(row.bet_volume_24h ?? 0)
@@ -299,12 +306,12 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
       }
     })
 
-    const ggrTrend7d = ggrTrend.rows.map((row) => ({
+    const ggrTrend7d = ggrTrend.map((row) => ({
       day: row.day,
       ggr: Number(row.ggr ?? 0),
     }))
 
-    const peakHoursResult = peakHours.rows.map((row) => {
+    const peakHoursResult = peakHours.map((row) => {
       const date = new Date(row.hour_bucket)
       const hour = date.getHours()
       const label = `${hour}h-${(hour + 1) % 24}h`
@@ -327,6 +334,7 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
       games,
       ggrTrend7d,
       peakHours: peakHoursResult,
+      totalPlayerWinnings24h: Number(winnings24h.total_winnings),
       summary: {
         payoutRate: payoutGlobal,
         activeGames: games.length,
@@ -338,6 +346,67 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Failed to fetch platform stats" })
   }
 })
+
+app.get(
+  "/stats/player",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    try {
+      const { userId } = (req as any).user
+
+      const [perGameBets, perGameWinnings, sessionCount] = await Promise.all([
+        getPlayerStats(userId),
+        getPlayerWinnings(userId),
+        getPlayerSessionCount(userId),
+      ])
+
+      const winningsMap = new Map(
+        perGameWinnings.map((row) => [row.game_type, row]),
+      )
+
+      const games = perGameBets.map((row) => {
+        const winData = winningsMap.get(row.game_type)
+        const totalWagered = Number(row.total_wagered)
+        const totalWon = Number(winData?.total_won ?? 0)
+        const totalRounds = Number(winData?.total_rounds ?? 0)
+        const wins = Number(winData?.wins ?? 0)
+        const winRate = totalRounds > 0 ? Math.round((wins * 100) / totalRounds) : 0
+
+        const name =
+          row.game_type === "blackjack"
+            ? "Blackjack"
+            : row.game_type === "roulette"
+              ? "Roulette"
+              : "Machine à sous"
+
+        return {
+          gameType: row.game_type,
+          name,
+          totalBets: Number(row.total_bets),
+          totalWagered,
+          totalWon,
+          winRate,
+        }
+      })
+
+      const totalWagered = games.reduce((sum, game) => sum + game.totalWagered, 0)
+      const totalWon = games.reduce((sum, game) => sum + game.totalWon, 0)
+      const totalBets = games.reduce((sum, game) => sum + game.totalBets, 0)
+
+      res.status(200).json({
+        totalSessions: Number(sessionCount.total_sessions),
+        totalBets,
+        totalWagered,
+        totalWon,
+        netResult: totalWon - totalWagered,
+        games,
+      })
+    } catch (error) {
+      console.error("Error fetching player stats", error)
+      res.status(500).json({ message: "Failed to fetch player stats" })
+    }
+  },
+)
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`HTTP server running on http://0.0.0.0:${PORT}`)
