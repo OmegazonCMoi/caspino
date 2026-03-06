@@ -27,10 +27,13 @@ import com.example.mobile.SportsBettingActivity
 import com.example.mobile.ui.components.AppBottomBar
 import com.example.mobile.ui.components.BalanceHeader
 import com.example.mobile.network.GamesApi
+import com.example.mobile.network.ApiClient
 import com.example.mobile.ui.components.BottomBarItem
 import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.ui.theme.DarkTextPrimary
 import com.example.mobile.ui.theme.DarkTextSecondary
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 data class GameItem(
     val title: String,
@@ -42,11 +45,18 @@ data class GameItem(
 fun HomeScreen() {
 
     var selectedTab by remember { mutableStateOf(0) }
-    var lastPlayed by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var lastPlayed by remember { mutableStateOf(ApiClient.getLastPlayed()) }
     val context = LocalContext.current
 
+    val dateFormatter = remember {
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+    }
+
     LaunchedEffect(Unit) {
-        GamesApi.fetchLastPlayed().onSuccess { lastPlayed = it }
+        GamesApi.fetchLastPlayed().onSuccess {
+            lastPlayed = it
+            ApiClient.saveLastPlayed(it)
+        }
     }
 
     val games = remember(lastPlayed) {
@@ -59,7 +69,23 @@ fun HomeScreen() {
         )
     }
 
+    fun keyForTitle(title: String): String? =
+        when (title) {
+            "Blackjack" -> "blackjack"
+            "Poker" -> "poker"
+            "Roulette" -> "roulette"
+            "Machine à sous" -> "slot"
+            "Paris sportifs" -> "sports"
+            else -> null
+        }
+
     fun navigateToGame(gameName: String) {
+        keyForTitle(gameName)?.let { key ->
+            val updated = lastPlayed.toMutableMap()
+            updated[key] = LocalDateTime.now().format(dateFormatter)
+            lastPlayed = updated
+            ApiClient.saveLastPlayed(updated)
+        }
         val activityClass = when (gameName) {
             "Blackjack" -> BlackjackActivity::class.java
             "Poker" -> PokerActivity::class.java
@@ -234,7 +260,7 @@ fun GameRow(
                 color = DarkTextPrimary
             )
             Text(
-                text = dateLastGame?.let { "Dernière partie: $it" } ?: "Jamais joué",
+                text = dateLastGame ?: "Jamais joué",
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
                 fontWeight = FontWeight.SemiBold,

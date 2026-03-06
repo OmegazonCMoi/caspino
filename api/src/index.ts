@@ -13,6 +13,8 @@ import {
   getLastDailyBonus,
   insertDailyBonus,
 } from "./globalRepository.ts"
+import { db } from "./db/index.ts"
+import type { GameType } from "./db/database.ts"
 import {
   getPerGameStats,
   getGgrTrend,
@@ -346,6 +348,77 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Failed to fetch platform stats" })
   }
 })
+
+app.get(
+  "/games/last-played",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    try {
+      const { userId, username } = (req as any).user as {
+        userId?: string
+        username?: string
+      }
+
+      let effectiveUserId = userId
+
+      if (!effectiveUserId && username) {
+        const user = await getUserByUsername(username)
+        effectiveUserId = user?.id
+      }
+
+      if (!effectiveUserId) {
+        return res.status(401).json({ message: "Invalid token" })
+      }
+
+      const rows = await db
+        .selectFrom("bets")
+        .innerJoin("parties", "parties.id", "bets.party_id")
+        .select([
+          "parties.game_type as game_type",
+          db.fn.max("bets.created_at").as("last_played_at"),
+        ])
+        .where("bets.user_id", "=", effectiveUserId)
+        .groupBy("parties.game_type")
+        .execute()
+
+      const lastPlayed: Record<string, string> = {}
+
+      const formatDate = (d: Date) => {
+        const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`)
+        const day = pad(d.getDate())
+        const month = pad(d.getMonth() + 1)
+        const year = d.getFullYear()
+        const hours = pad(d.getHours())
+        const minutes = pad(d.getMinutes())
+        return `${day}/${month}/${year} ${hours}:${minutes}`
+      }
+
+      const mapKey = (gameType: GameType): string => {
+        switch (gameType) {
+          case "blackjack":
+            return "blackjack"
+          case "roulette":
+            return "roulette"
+          case "slot":
+            return "slot"
+          default:
+            return gameType
+        }
+      }
+
+      rows.forEach((row: any) => {
+        const key = mapKey(row.game_type as GameType)
+        const date = new Date(row.last_played_at)
+        lastPlayed[key] = formatDate(date)
+      })
+
+      res.status(200).json({ lastPlayed })
+    } catch (error) {
+      console.error("Error fetching last played games", error)
+      res.status(500).json({ message: "Failed to fetch last played games" })
+    }
+  },
+)
 
 app.get(
   "/stats/player",

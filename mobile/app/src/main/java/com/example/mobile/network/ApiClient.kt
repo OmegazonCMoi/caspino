@@ -3,6 +3,7 @@ package com.example.mobile.network
 import android.content.Context
 import android.content.SharedPreferences
 import okhttp3.OkHttpClient
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
@@ -29,6 +30,7 @@ object ApiClient {
     private const val KEY_USERNAME = "username"
     private const val KEY_EMAIL = "email"
     private const val KEY_BALANCE = "balance"
+    private const val KEY_LAST_PLAYED = "last_played"
 
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -52,6 +54,35 @@ object ApiClient {
     fun saveBalance(balance: Int) {
         if (::prefs.isInitialized) {
             prefs.edit().putInt(KEY_BALANCE, balance).apply()
+        }
+    }
+
+    fun saveLastPlayed(map: Map<String, String>) {
+        if (!::prefs.isInitialized) return
+        val json = JSONObject()
+        map.forEach { (k, v) ->
+            json.put(k, v)
+        }
+        prefs.edit().putString(KEY_LAST_PLAYED, json.toString()).apply()
+    }
+
+    fun getLastPlayed(): Map<String, String> {
+        if (!::prefs.isInitialized) return emptyMap()
+        val raw = prefs.getString(KEY_LAST_PLAYED, null) ?: return emptyMap()
+        return try {
+            val json = JSONObject(raw)
+            val result = mutableMapOf<String, String>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val value = json.optString(key, "")
+                if (value.isNotEmpty()) {
+                    result[key] = value
+                }
+            }
+            result
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 
