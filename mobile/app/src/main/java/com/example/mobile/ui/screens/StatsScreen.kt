@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,12 +43,15 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mobile.MainActivity
 import com.example.mobile.network.GameStatDto
+import com.example.mobile.network.PlayerGameStatDto
 import com.example.mobile.network.PlayerProfileDto
 import com.example.mobile.network.PlayerPredictionDto
+import com.example.mobile.network.PlayerStatsResponse
 import com.example.mobile.network.PlayersAnalysisResponse
 import com.example.mobile.network.StatsApi
 import com.example.mobile.network.StatsPlatformResponse
@@ -98,8 +103,10 @@ fun StatsScreen(onBackClick: () -> Unit) {
         }
     )
 
+    var selectedTab by remember { mutableIntStateOf(0) }
     var stats by remember { mutableStateOf<StatsPlatformResponse?>(null) }
     var analysis by remember { mutableStateOf<PlayersAnalysisResponse?>(null) }
+    var playerStats by remember { mutableStateOf<PlayerStatsResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -114,6 +121,7 @@ fun StatsScreen(onBackClick: () -> Unit) {
         }
 
         StatsApi.fetchPlayersAnalysis().onSuccess { analysis = it }
+        StatsApi.fetchPlayerStats().onSuccess { playerStats = it }
     }
 
     Scaffold(
@@ -139,75 +147,258 @@ fun StatsScreen(onBackClick: () -> Unit) {
                 Text(text = error ?: "Erreur inconnue", color = AccentRed)
             }
         } else {
-            val data = stats!!
-
-            val coloredGames = mapGamesWithColors(data.games)
-            val totalSessions = coloredGames.sumOf { it.sessions24h }
-            val totalPlayers = coloredGames.sumOf { it.uniquePlayers24h }.coerceAtLeast(1)
-            val totalBetVolume = coloredGames.sumOf { it.betVolume24h }
-            val totalGgr = coloredGames.sumOf { it.ggr24h }
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
+                StatsTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
+
+                if (selectedTab == 0) {
+                    PlatformStatsContent(stats = stats!!, analysis = analysis)
+                } else {
+                    PlayerStatsContent(playerStats = playerStats)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatsTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    val tabs = listOf("Plateforme", "Mon profil")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(DarkSurface),
+    ) {
+        tabs.forEachIndexed { tabIndex, label ->
+            val isSelected = selectedTab == tabIndex
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isSelected) AccentBlue else Color.Transparent)
+                    .clickable { onTabSelected(tabIndex) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) Color.White else DarkTextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlatformStatsContent(stats: StatsPlatformResponse, analysis: PlayersAnalysisResponse?) {
+    val coloredGames = mapGamesWithColors(stats.games)
+    val totalSessions = coloredGames.sumOf { it.sessions24h }
+    val totalPlayers = coloredGames.sumOf { it.uniquePlayers24h }.coerceAtLeast(1)
+    val totalBetVolume = coloredGames.sumOf { it.betVolume24h }
+    val totalGgr = coloredGames.sumOf { it.ggr24h }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            KpiCard("Sessions 24h", totalSessions.toString(), Modifier.weight(1f))
+            KpiCard("Joueurs 24h", totalPlayers.toString(), Modifier.weight(1f))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            KpiCard("Volume mises 24h", "${totalBetVolume / 1000}k", Modifier.weight(1f), AccentPurple)
+            KpiCard("Revenu brut 24h", "${totalGgr / 1000}k", Modifier.weight(1f), AccentGreen)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            KpiCard(
+                "Gains joueurs 24h",
+                "${stats.totalPlayerWinnings24h / 1000}k",
+                Modifier.weight(1f),
+                AccentOrange
+            )
+        }
+
+        SectionTitle("Tendance revenu brut (7 jours)")
+        GgrLineChart(stats.ggrTrend7d.map { it.ggr })
+
+        SectionTitle("Répartition du trafic")
+        if (totalSessions > 0) {
+            TrafficShareDonut(stats = coloredGames, totalSessions = totalSessions)
+        }
+
+        SectionTitle("Performance par jeu")
+        GamePerformanceBars(coloredGames)
+
+        SectionTitle("Heures fortes")
+        PeakHoursTable(
+            stats.peakHours.map {
+                PeakHour(
+                    hour = it.label,
+                    sessions = it.sessions,
+                    ggr = it.ggr
+                )
+            }
+        )
+
+        if (analysis != null && analysis.profiles.isNotEmpty()) {
+            SectionTitle("Profilage joueurs (IA)")
+            PlayerProfilesTable(analysis.profiles)
+
+            SectionTitle("Prédictions (régression)")
+            PlayerPredictionsTable(analysis.predictions)
+        }
+
+        SectionTitle("Synthèse plateforme")
+        SummaryPanel(
+            payoutRate = stats.summary.payoutRate,
+            activeGames = stats.summary.activeGames,
+            avgSessionPerPlayer = stats.summary.avgSessionPerPlayer
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun PlayerStatsContent(playerStats: PlayerStatsResponse?) {
+    if (playerStats == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Connectez-vous pour voir vos statistiques",
+                color = DarkTextSecondary,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            KpiCard("Sessions", playerStats.totalSessions.toString(), Modifier.weight(1f))
+            KpiCard("Paris", playerStats.totalBets.toString(), Modifier.weight(1f))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            KpiCard("Total misé", "${playerStats.totalWagered}", Modifier.weight(1f), AccentPurple)
+            KpiCard("Total gagné", "${playerStats.totalWon}", Modifier.weight(1f), AccentOrange)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val netColor = if (playerStats.netResult >= 0) AccentGreen else AccentRed
+            val netPrefix = if (playerStats.netResult >= 0) "+" else ""
+            KpiCard("Résultat net", "$netPrefix${playerStats.netResult}", Modifier.weight(1f), netColor)
+        }
+
+        if (playerStats.games.isNotEmpty()) {
+            SectionTitle("Performance par jeu")
+            PlayerGamePerformance(playerStats.games)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun PlayerGamePerformance(games: List<PlayerGameStatDto>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkSurface)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        games.forEach { game ->
+            val gameColor = when (game.gameType) {
+                "blackjack" -> AccentBlue
+                "roulette" -> AccentGreen
+                "slot" -> AccentOrange
+                else -> DarkTextPrimary
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    KpiCard("Sessions 24h", totalSessions.toString(), Modifier.weight(1f))
-                    KpiCard("Joueurs 24h", totalPlayers.toString(), Modifier.weight(1f))
+                    Text(
+                        text = game.name,
+                        color = DarkTextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Win ${game.winRate}%",
+                        color = if (game.winRate >= 50) AccentGreen else AccentRed,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(DarkSurfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((game.winRate / 100f).coerceIn(0f, 1f))
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(gameColor)
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    KpiCard("Volume 24h", "${totalBetVolume / 1000}k", Modifier.weight(1f), AccentPurple)
-                    KpiCard("GGR 24h", "${totalGgr / 1000}k", Modifier.weight(1f), AccentGreen)
+                    Text(
+                        text = "${game.totalBets} paris",
+                        fontSize = 11.sp,
+                        color = DarkTextSecondary
+                    )
+                    Text(
+                        text = "Misé ${game.totalWagered} / Gagné ${game.totalWon}",
+                        fontSize = 11.sp,
+                        color = DarkTextSecondary
+                    )
                 }
-
-                SectionTitle("Tendance GGR (7 jours)")
-                GgrLineChart(data.ggrTrend7d.map { it.ggr })
-
-                SectionTitle("Répartition du trafic")
-                if (totalSessions > 0) {
-                    TrafficShareDonut(stats = coloredGames, totalSessions = totalSessions)
-                }
-
-                SectionTitle("Performance par jeu")
-                GamePerformanceBars(coloredGames)
-
-                SectionTitle("Heures fortes")
-                PeakHoursTable(
-                    data.peakHours.map {
-                        PeakHour(
-                            hour = it.label,
-                            sessions = it.sessions,
-                            ggr = it.ggr
-                        )
-                    }
-                )
-
-                if (analysis != null && analysis!!.profiles.isNotEmpty()) {
-                    SectionTitle("Profilage joueurs (IA)")
-                    PlayerProfilesTable(analysis!!.profiles)
-
-                    SectionTitle("Prédictions (régression)")
-                    PlayerPredictionsTable(analysis!!.predictions)
-                }
-
-                SectionTitle("Synthèse plateforme")
-                SummaryPanel(
-                    payoutRate = data.summary.payoutRate,
-                    activeGames = data.summary.activeGames,
-                    avgSessionPerPlayer = data.summary.avgSessionPerPlayer
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
@@ -501,7 +692,6 @@ private fun SummaryPanel(
         SummaryRow("RTP global estimé", "$payoutRate%", AccentGreen)
         SummaryRow("Sessions / joueur", String.format("%.1f", avgSessionPerPlayer), AccentOrange)
         SummaryRow("Scope", "Blackjack / Roulette / Slot", DarkTextSecondary)
-        SummaryRow("Sources", "mock local (DB à brancher)", AccentRed)
     }
 }
 

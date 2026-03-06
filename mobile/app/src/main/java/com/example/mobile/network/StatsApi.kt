@@ -37,7 +37,26 @@ data class StatsPlatformResponse(
     val games: List<GameStatDto>,
     val ggrTrend7d: List<GgrPointDto>,
     val peakHours: List<PeakHourDto>,
-    val summary: SummaryDto
+    val summary: SummaryDto,
+    val totalPlayerWinnings24h: Int
+)
+
+data class PlayerGameStatDto(
+    val gameType: String,
+    val name: String,
+    val totalBets: Int,
+    val totalWagered: Int,
+    val totalWon: Int,
+    val winRate: Int
+)
+
+data class PlayerStatsResponse(
+    val totalSessions: Int,
+    val totalBets: Int,
+    val totalWagered: Int,
+    val totalWon: Int,
+    val netResult: Int,
+    val games: List<PlayerGameStatDto>
 )
 
 data class PlayerProfileDto(
@@ -132,17 +151,77 @@ object StatsApi {
                         avgSessionPerPlayer = summaryJson.optDouble("avgSessionPerPlayer").toFloat()
                     )
 
+                    val totalPlayerWinnings24h = json.optInt("totalPlayerWinnings24h", 0)
+
                     Result.success(
                         StatsPlatformResponse(
                             games = games,
                             ggrTrend7d = trend,
                             peakHours = peak,
-                            summary = summary
+                            summary = summary,
+                            totalPlayerWinnings24h = totalPlayerWinnings24h
                         )
                     )
                 }
             } catch (e: Exception) {
                 Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun fetchPlayerStats(): Result<PlayerStatsResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = ApiClient.token
+                    ?: return@withContext Result.failure(IllegalStateException("No token"))
+
+                val request = Request.Builder()
+                    .url("${ApiClient.BASE_URL}/stats/player")
+                    .addHeader("Authorization", "Bearer $token")
+                    .get()
+                    .build()
+
+                ApiClient.http.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(
+                            IllegalStateException("HTTP ${response.code}")
+                        )
+                    }
+
+                    val body = response.body?.string()
+                        ?: return@withContext Result.failure(IllegalStateException("Empty body"))
+
+                    val json = JSONObject(body)
+
+                    val gamesJson = json.optJSONArray("games") ?: JSONArray()
+                    val games = mutableListOf<PlayerGameStatDto>()
+                    for (gameIndex in 0 until gamesJson.length()) {
+                        val gameObj = gamesJson.getJSONObject(gameIndex)
+                        games.add(
+                            PlayerGameStatDto(
+                                gameType = gameObj.optString("gameType"),
+                                name = gameObj.optString("name"),
+                                totalBets = gameObj.optInt("totalBets"),
+                                totalWagered = gameObj.optInt("totalWagered"),
+                                totalWon = gameObj.optInt("totalWon"),
+                                winRate = gameObj.optInt("winRate")
+                            )
+                        )
+                    }
+
+                    Result.success(
+                        PlayerStatsResponse(
+                            totalSessions = json.optInt("totalSessions"),
+                            totalBets = json.optInt("totalBets"),
+                            totalWagered = json.optInt("totalWagered"),
+                            totalWon = json.optInt("totalWon"),
+                            netResult = json.optInt("netResult"),
+                            games = games
+                        )
+                    )
+                }
+            } catch (exception: Exception) {
+                Result.failure(exception)
             }
         }
     }

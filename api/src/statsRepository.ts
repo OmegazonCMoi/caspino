@@ -1,6 +1,71 @@
 import { sql } from "kysely"
 import { db } from "./db/index.ts"
 
+export const getTotalPlayerWinnings24h = (since: Date) => {
+  return db
+    .selectFrom(
+      sql<{ gain: number; created_at: Date }>`(
+        SELECT gain, created_at FROM slot_results
+        UNION ALL
+        SELECT gain, created_at FROM roulette_results
+        UNION ALL
+        SELECT gain, created_at FROM blackjack_results
+      )`.as("all_results"),
+    )
+    .where(sql.ref("all_results.created_at"), ">=", since)
+    .select(sql<string>`COALESCE(SUM(${sql.ref("all_results.gain")}), 0)`.as("total_winnings"))
+    .executeTakeFirstOrThrow()
+}
+
+export const getPlayerStats = (userId: string) => {
+  return db
+    .selectFrom("bets as b")
+    .innerJoin("parties as p", "p.id", "b.party_id")
+    .where("b.user_id", "=", userId)
+    .groupBy("p.game_type")
+    .select([
+      "p.game_type",
+      db.fn.countAll<string>().as("total_bets"),
+      sql<string>`COALESCE(SUM(${sql.ref("b.amount")}), 0)`.as("total_wagered"),
+    ])
+    .execute()
+}
+
+export const getPlayerWinnings = (userId: string) => {
+  return db
+    .selectFrom(
+      sql<{ gain: number; game_type: string }>`(
+        SELECT sr.gain, p.game_type
+        FROM slot_results sr JOIN parties p ON p.id = sr.party_id
+        WHERE sr.user_id = ${userId}
+        UNION ALL
+        SELECT rr.gain, p.game_type
+        FROM roulette_results rr JOIN parties p ON p.id = rr.party_id
+        WHERE rr.user_id = ${userId}
+        UNION ALL
+        SELECT br.gain, p.game_type
+        FROM blackjack_results br JOIN parties p ON p.id = br.party_id
+        WHERE br.user_id = ${userId}
+      )`.as("player_results"),
+    )
+    .groupBy("player_results.game_type")
+    .select([
+      "player_results.game_type",
+      sql<string>`COUNT(*)`.as("total_rounds"),
+      sql<string>`COALESCE(SUM(${sql.ref("player_results.gain")}), 0)`.as("total_won"),
+      sql<string>`COUNT(CASE WHEN ${sql.ref("player_results.gain")} > 0 THEN 1 END)`.as("wins"),
+    ])
+    .execute()
+}
+
+export const getPlayerSessionCount = (userId: string) => {
+  return db
+    .selectFrom("bets as b")
+    .where("b.user_id", "=", userId)
+    .select(sql<string>`COUNT(DISTINCT ${sql.ref("b.party_id")})`.as("total_sessions"))
+    .executeTakeFirstOrThrow()
+}
+
 export const getPerGameStats = (since: Date) => {
   return db
     .selectFrom("parties as p")
