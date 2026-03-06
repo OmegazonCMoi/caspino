@@ -788,14 +788,14 @@ private fun ActionButtons(
     }
 }
 
-private fun canSplitHand(hand: BlackjackHand): Boolean {
+internal fun canSplitHand(hand: BlackjackHand): Boolean {
     if (hand.cards.size != 2) return false
     val firstCard = hand.cards[0]
     val secondCard = hand.cards[1]
     return cardNumericValue(firstCard) == cardNumericValue(secondCard)
 }
 
-private fun cardNumericValue(card: BlackjackCard): Int {
+internal fun cardNumericValue(card: BlackjackCard): Int {
     return when (card.rank) {
         "A" -> 11
         "K", "Q", "J" -> 10

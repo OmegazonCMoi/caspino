@@ -75,9 +75,9 @@ import org.json.JSONObject
 import kotlin.time.Duration.Companion.seconds
 
 // Chip denominations and their colors
-private val chipDenominations = listOf(10, 25, 50, 100, 500)
+internal val chipDenominations = listOf(10, 25, 50, 100, 500)
 
-private fun chipColor(value: Int): Color = when (value) {
+internal fun chipColor(value: Int): Color = when (value) {
     10 -> Color(0xFF1565C0)
     25 -> Color(0xFF2E7D32)
     50 -> Color(0xFFE65100)
@@ -86,11 +86,11 @@ private fun chipColor(value: Int): Color = when (value) {
     else -> Color.Gray
 }
 
-private fun numberAt(row: Int, col: Int) = row * 3 + col + 1
+internal fun numberAt(row: Int, col: Int) = row * 3 + col + 1
 
-private const val EDGE_THRESHOLD = 0.28f
+internal const val EDGE_THRESHOLD = 0.28f
 
-private fun determineBetTarget(
+internal fun determineBetTarget(
     tapX: Float,
     tapY: Float,
     cellWidthPx: Float,
@@ -144,7 +144,7 @@ private fun determineBetTarget(
     return listOf(numberAt(row, col))
 }
 
-private fun multiBetCenterPx(
+internal fun multiBetCenterPx(
     numbers: List<Int>,
     cellWidthPx: Float,
     cellHeightPx: Float
@@ -943,11 +943,11 @@ fun RouletteBetChipStatic(
 
 // --- Utility functions ---
 
-private fun isRouletteRed(number: Int): Boolean {
+internal fun isRouletteRed(number: Int): Boolean {
     return number in setOf(1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36)
 }
 
-private fun isWinningGroupForDisplay(groupId: String, number: Int): Boolean {
+internal fun isWinningGroupForDisplay(groupId: String, number: Int): Boolean {
     if (number !in 0..36) return false
     return when (groupId) {
         "PAIR" -> number != 0 && number % 2 == 0
@@ -963,7 +963,7 @@ private fun isWinningGroupForDisplay(groupId: String, number: Int): Boolean {
     }
 }
 
-private fun darkenColor(color: Color, factor: Float): Color {
+internal fun darkenColor(color: Color, factor: Float): Color {
     val clamped = factor.coerceIn(0f, 1f)
     return Color(
         red = (color.red * clamped).coerceIn(0f, 1f),

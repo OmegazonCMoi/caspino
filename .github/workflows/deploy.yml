@@ -12,9 +12,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mobile-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK for Android tests
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Run mobile unit tests
+        working-directory: ./mobile
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:testDebugUnitTest
+
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: mobile-tests
 
     steps:
       - name: Checkout
