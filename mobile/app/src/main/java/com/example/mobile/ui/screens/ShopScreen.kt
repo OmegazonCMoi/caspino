@@ -1,5 +1,6 @@
 package com.example.mobile.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,19 +31,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mobile.MainActivity
 import com.example.mobile.R
 import com.example.mobile.network.AlreadyClaimedException
 import com.example.mobile.network.ApiClient
 import com.example.mobile.network.AuthApi
+import com.example.mobile.ui.components.AppBottomBar
 import com.example.mobile.ui.components.AppButton
 import com.example.mobile.ui.components.AppHeader
 import com.example.mobile.ui.components.BalanceHeader
+import com.example.mobile.ui.components.BottomBarItem
 import com.example.mobile.ui.components.ButtonSize
 import com.example.mobile.ui.components.ButtonVariant
+import com.example.mobile.ui.icons.AppIcons
 import com.example.mobile.ui.theme.DarkBackground
 import com.example.mobile.ui.theme.DarkSurfaceVariant
 import com.example.mobile.ui.theme.DarkTextPrimary
@@ -69,6 +77,26 @@ fun ShopScreen(
     var isClaiming by remember { mutableStateOf(false) }
     var isLoadingClaimStatus by remember { mutableStateOf(true) }
     var secondsUntilMidnight by remember { mutableLongStateOf(0L) }
+
+    val context = LocalContext.current
+
+    val bottomBarItems = listOf(
+        BottomBarItem(
+            icon = AppIcons.Home,
+            selectedIcon = AppIcons.HomeFilled
+        ) {
+            context.startActivity(Intent(context, MainActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Search, AppIcons.SearchFilled) {
+            context.startActivity(Intent(context, com.example.mobile.StatsActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Profile, AppIcons.ProfileFilled) {
+            context.startActivity(Intent(context, com.example.mobile.AccountActivity::class.java))
+        },
+        BottomBarItem(AppIcons.Cart, AppIcons.CartFilled) {
+            // On est déjà sur la boutique, pas de navigation supplémentaire
+        }
+    )
 
     LaunchedEffect(Unit) {
         AccountState.refreshFromServer()
@@ -109,31 +137,36 @@ fun ShopScreen(
             .fillMaxSize()
             .background(DarkBackground)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Header pleine largeur, aligné comme sur les autres écrans
-            AppHeader(
-                title = "Acheter des pinos",
-                onBackClick = onBackClick
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+        Scaffold(
+            topBar = {
+                AppHeader(
+                    title = "Acheter des pinos",
+                    onBackClick = onBackClick
+                )
+            },
+            bottomBar = {
+                AppBottomBar(
+                    items = bottomBarItems,
+                    selectedIndex = 3
+                )
+            }
+        ) { innerPadding ->
             if (isLoadingClaimStatus) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.material3.CircularProgressIndicator(
+                    CircularProgressIndicator(
                         color = DarkTextSecondary
                     )
                 }
             } else {
-                // Contenu scrollable avec padding horizontal
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(innerPadding)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp)
                 ) {
@@ -151,7 +184,6 @@ fun ShopScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Offre gratuite : masquée si déjà récupérée aujourd'hui
                     val hasClaimedFree = BalanceState.hasClaimedFreeToday()
                     if (hasClaimedFree) {
                         DailyBonusTimer(secondsUntilMidnight = secondsUntilMidnight)
@@ -182,7 +214,6 @@ fun ShopScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Offres payantes : 2 par 2
                     paidOffers.chunked(2).forEach { rowOffers ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
