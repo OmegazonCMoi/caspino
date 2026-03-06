@@ -12,7 +12,8 @@
     "dev-slots-client": "nodemon --exec node --loader ts-node/esm src/games/slots/client.ts",
     "dev-blackjack": "nodemon --exec node --loader ts-node/esm src/games/blackjack/index.ts",
     "dev-blackjack-client": "nodemon --exec node --loader ts-node/esm src/games/blackjack/client.ts",
-    "dev": "nodemon --exec node --loader ts-node/esm src/index.ts"
+    "dev": "nodemon --exec node --loader ts-node/esm src/index.ts",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -27,7 +28,8 @@
     "@types/ws": "^8.18.1",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
