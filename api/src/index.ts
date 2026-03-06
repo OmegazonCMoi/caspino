@@ -25,6 +25,7 @@ import {
   getPlayerSessionCount,
 } from "./statsRepository.ts"
 import { playeEffect } from "./games/playeEffect.ts"
+import { buildPlayersAnalysis } from "./playerAnalyticsService.ts"
 
 const SALT_ROUNDS = 12
 
@@ -348,6 +349,16 @@ app.get("/stats/platform", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching platform stats", error)
     res.status(500).json({ message: "Failed to fetch platform stats" })
+  }
+})
+
+app.get("/stats/players-analysis", async (req: Request, res: Response) => {
+  try {
+    const analysis = await buildPlayersAnalysis()
+    res.status(200).json(analysis)
+  } catch (error) {
+    console.error("Error fetching players analysis", error)
+    res.status(500).json({ message: "Failed to fetch players analysis" })
   }
 })
 

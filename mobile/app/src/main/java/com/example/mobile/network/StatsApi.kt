@@ -72,6 +72,7 @@ data class PlayerPredictionDto(
     val username: String,
     val predictedWinRate: Int,
     val estimatedSessionsNextWeek: Int,
+    val predictedNetGainNextWeek: Int,
     val trend: String
 )
 
@@ -271,6 +272,7 @@ object StatsApi {
                                 username = p.optString("username"),
                                 predictedWinRate = p.optInt("predictedWinRate"),
                                 estimatedSessionsNextWeek = p.optInt("estimatedSessionsNextWeek"),
+                                predictedNetGainNextWeek = p.optInt("predictedNetGainNextWeek"),
                                 trend = p.optString("trend")
                             )
                         )

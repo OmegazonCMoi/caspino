@@ -108,6 +108,8 @@ fun StatsScreen(onBackClick: () -> Unit) {
     var analysis by remember { mutableStateOf<PlayersAnalysisResponse?>(null) }
     var playerStats by remember { mutableStateOf<PlayerStatsResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var isAnalysisLoading by remember { mutableStateOf(true) }
+    var analysisError by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
@@ -120,7 +122,17 @@ fun StatsScreen(onBackClick: () -> Unit) {
             isLoading = false
         }
 
-        StatsApi.fetchPlayersAnalysis().onSuccess { analysis = it }
+        StatsApi.fetchPlayersAnalysis()
+            .onSuccess {
+                analysis = it
+                analysisError = null
+                isAnalysisLoading = false
+            }
+            .onFailure {
+                analysis = null
+                analysisError = "Analyse IA indisponible"
+                isAnalysisLoading = false
+            }
         StatsApi.fetchPlayerStats().onSuccess { playerStats = it }
     }
 
@@ -155,7 +167,12 @@ fun StatsScreen(onBackClick: () -> Unit) {
                 StatsTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
 
                 if (selectedTab == 0) {
-                    PlatformStatsContent(stats = stats!!, analysis = analysis)
+                    PlatformStatsContent(
+                        stats = stats!!,
+                        analysis = analysis,
+                        isAnalysisLoading = isAnalysisLoading,
+                        analysisError = analysisError
+                    )
                 } else {
                     PlayerStatsContent(playerStats = playerStats)
                 }
@@ -197,7 +214,12 @@ private fun StatsTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
 }
 
 @Composable
-private fun PlatformStatsContent(stats: StatsPlatformResponse, analysis: PlayersAnalysisResponse?) {
+private fun PlatformStatsContent(
+    stats: StatsPlatformResponse,
+    analysis: PlayersAnalysisResponse?,
+    isAnalysisLoading: Boolean,
+    analysisError: String?
+) {
     val coloredGames = mapGamesWithColors(stats.games)
     val totalSessions = coloredGames.sumOf { it.sessions24h }
     val totalPlayers = coloredGames.sumOf { it.uniquePlayers24h }.coerceAtLeast(1)
@@ -262,12 +284,20 @@ private fun PlatformStatsContent(stats: StatsPlatformResponse, analysis: Players
             }
         )
 
-        if (analysis != null && analysis.profiles.isNotEmpty()) {
-            SectionTitle("Profilage joueurs (IA)")
-            PlayerProfilesTable(analysis.profiles)
+        SectionTitle("Classification joueurs")
+        when {
+            isAnalysisLoading -> StatusCard("Chargement des blocs IA...")
+            analysisError != null -> StatusCard(analysisError, AccentRed)
+            analysis == null || analysis.profiles.isEmpty() -> StatusCard("Aucune donnée IA disponible pour le moment.")
+            else -> PlayerProfilesTable(analysis.profiles)
+        }
 
-            SectionTitle("Prédictions (régression)")
-            PlayerPredictionsTable(analysis.predictions)
+        SectionTitle("Prévisions régression")
+        when {
+            isAnalysisLoading -> StatusCard("Calcul des prédictions en cours...")
+            analysisError != null -> StatusCard(analysisError, AccentRed)
+            analysis == null || analysis.predictions.isEmpty() -> StatusCard("Aucune prédiction disponible pour le moment.")
+            else -> PlayerPredictionsTable(analysis.predictions)
         }
 
         SectionTitle("Synthèse plateforme")
@@ -421,6 +451,28 @@ private fun KpiCard(
         Text(text = value, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = valueColor)
         Spacer(Modifier.height(2.dp))
         Text(text = label, fontSize = 11.sp, color = DarkTextSecondary)
+    }
+}
+
+@Composable
+private fun StatusCard(
+    message: String,
+    messageColor: Color = DarkTextSecondary
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkSurface)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            color = messageColor,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -864,13 +916,24 @@ private fun PlayerPredictionsTable(predictions: List<PlayerPredictionDto>) {
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    p.username,
+                Column(
                     modifier = Modifier.weight(1.2f),
-                    fontSize = 12.sp,
-                    color = DarkTextPrimary,
-                    fontWeight = FontWeight.Medium
-                )
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = p.username,
+                        fontSize = 12.sp,
+                        color = DarkTextPrimary,
+                        fontWeight = FontWeight.Medium
+                    )
+                    val gainColor = if (p.predictedNetGainNextWeek >= 0) AccentGreen else AccentRed
+                    val gainPrefix = if (p.predictedNetGainNextWeek >= 0) "+" else ""
+                    Text(
+                        text = "Gain net ${gainPrefix}${formatCompactAmount(p.predictedNetGainNextWeek)}",
+                        fontSize = 10.sp,
+                        color = gainColor
+                    )
+                }
                 Text(
                     "${p.predictedWinRate}%",
                     modifier = Modifier.weight(1f),
@@ -922,5 +985,13 @@ private fun mapGamesWithColors(games: List<GameStatDto>): List<PlatformGameStat>
             payoutRate = game.payoutRate,
             color = color
         )
+    }
+}
+
+private fun formatCompactAmount(value: Int): String {
+    val absolute = kotlin.math.abs(value)
+    return when {
+        absolute >= 1000 -> "${value / 1000}k"
+        else -> value.toString()
     }
 }
