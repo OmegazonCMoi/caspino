@@ -114,7 +114,7 @@ app.post("/login", async (req: Request, res: Response) => {
       console.log(`[login] Invalid credentials for username="${username}"`)
       return res.status(401).json({ message: "Invalid credentials" })
     }
-
+    playeEffect(20,10)
     const token = jwt.sign({ username, userId: user.id }, JWT_SECRET, {
       expiresIn: "7d",
     })
@@ -148,7 +148,7 @@ app.get("/me", authenticateJWT, async (req: Request, res: Response) => {
     if (!user) return res.sendStatus(404)
 
     const dailyBonusClaim = await getLastDailyBonus(user.id)
-
+    
     res.status(200).json({
       user: {
         username: user.username,
@@ -182,7 +182,7 @@ app.post(
       }
 
       await insertDailyBonus(userId, 500)
-
+      playeEffect(10,10)
       const user = await getUserById(userId)
       const balance = Number(user?.balance ?? 0)
 
@@ -199,7 +199,7 @@ app.post(
 
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "api-caspino" })
-  playeEffect(100,10);
+  playeEffect(20,10);
 })
 
 const bastetenClient = process.env.BASETEN_API_KEY

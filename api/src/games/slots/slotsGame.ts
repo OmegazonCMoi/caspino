@@ -19,8 +19,9 @@ export class SlotsGame {
     const slotResult = this.generateResult()
     const gains = calculateGains(bet, slotResult, this.symbols)
     
-    playeEffect(gains, bet)
-
+    console.log("avant playEffect")
+    playeEffect(gains, bet);
+    console.log("apres playEffect")
     this.message(ws, { type: "BET_RESULT", payload: { slotResult, gains } })
   }
 

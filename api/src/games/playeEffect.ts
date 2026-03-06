@@ -1,5 +1,6 @@
 export const playeEffect = (gains: number, bet: number): void => {
   const factor = gains / bet
+  console.log("jouer sons")
   if (factor < 1) {
     fetch("http://10.109.150.245:5701/siren/small", {
       method: "POST",
